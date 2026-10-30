@@ -1,4 +1,5 @@
 mod audio;
+mod ptt;
 mod remote;
 mod rules;
 mod settings;
@@ -56,6 +57,7 @@ pub struct Core {
     last: Mutex<String>,
     running: Mutex<HashSet<String>>,
     tray: Mutex<Option<Tray>>,
+    hold: Mutex<ptt::Hold>,
 }
 
 #[derive(Serialize, Clone)]
@@ -66,8 +68,15 @@ struct PublicDevice {
 }
 
 #[derive(Serialize, Clone)]
+struct HoldView {
+    kind: String,
+    prior: bool,
+}
+
+#[derive(Serialize, Clone)]
 struct Snapshot {
     muted: bool,
+    holding: Option<HoldView>,
     shortcut: String,
     shortcuts: BTreeMap<String, String>,
     sound: bool,
@@ -132,6 +141,10 @@ impl Core {
         let left = self.pair_until.lock().unwrap().map(|t| t.saturating_duration_since(Instant::now()).as_secs()).unwrap_or(0);
         Snapshot {
             muted: self.muted(),
+            holding: {
+                let h = self.hold.lock().unwrap();
+                h.kind.zip(h.prior).map(|(k, p)| HoldView { kind: k.into(), prior: p })
+            },
             shortcut: s.shortcut(),
             shortcuts: s.shortcuts.clone(),
             sound: s.sound,
@@ -227,7 +240,32 @@ impl Core {
     }
 
     pub fn toggle(&self, src: &str) -> bool {
+        let restore = self.hold.lock().unwrap().toggled();
+        if let Some(p) = restore {
+            self.pill(if p { "off" } else { "on" }, if p { "Ao soltar: mudo" } else { "Ao soltar: no ar" }, "segurando");
+            self.emit_state();
+            return self.muted();
+        }
         self.set_muted(!self.muted(), src)
+    }
+
+    fn hold_key(&self, kind: &'static str, state: ShortcutState) {
+        if state == ShortcutState::Pressed {
+            let target = self.hold.lock().unwrap().press(kind, self.muted());
+            let Some(t) = target else { return };
+            if t != self.muted() {
+                self.set_muted(t, "segurando");
+            } else {
+                self.pill(if t { "off" } else { "on" }, if t { "Mudo" } else { "No ar" }, "segurando");
+            }
+        } else {
+            let prior = self.hold.lock().unwrap().release(kind);
+            let Some(p) = prior else { return };
+            if p != self.muted() {
+                self.set_muted(p, "soltou");
+            }
+        }
+        self.emit_state();
     }
 
     pub fn pair(&self, code: &str, name: &str) -> Result<String, PairResult> {
@@ -337,8 +375,13 @@ impl Core {
     }
 
     fn on_key(&self, action: &str, state: ShortcutState) {
-        if action == TOGGLE_MUTE && state == ShortcutState::Pressed {
-            self.toggle("atalho");
+        match action {
+            TOGGLE_MUTE if state == ShortcutState::Pressed => {
+                self.toggle("atalho");
+            }
+            "ptt" => self.hold_key("ptt", state),
+            "ptc" => self.hold_key("ptc", state),
+            _ => {}
         }
     }
 
@@ -612,6 +655,7 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
         last: Mutex::new("wpctl get-volume @DEFAULT_AUDIO_SOURCE@".into()),
         running: Mutex::new(HashSet::new()),
         tray: Mutex::new(None),
+        hold: Mutex::new(ptt::Hold::default()),
     });
     app.manage(core.clone());
 

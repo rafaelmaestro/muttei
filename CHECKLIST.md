@@ -84,9 +84,9 @@ https://claude.ai/artifact/CaqrnFcSV88Hp2UaVBwaWB (v1, 30/10)
 - [x] Layout da fase 2 aprovado pelo usuário · v4 corrigiu a gravação de teclas (feedback ao vivo, mais teclas, aviso de tecla inválida)
 - [x] Atalhos por ação (`toggle_mute`, `ptt`, `ptc`, `camera`, `hand`, `leave`); novos começam sem tecla
 - [x] Recusar combinação repetida entre ações; tirar o aviso errado de Ctrl+Space (o IBus aqui é Super+Space) · teste
-- [ ] `ptt.rs`: restaura o estado anterior, ignora autorepeat, toggle durante o hold muda o que volta · testes
-- [ ] Spike: eventos Pressed/Released do X11 segurando a tecla (debounce de 60 ms se piscar)
-- [ ] Pílula "No ar · segurando" e retorno ao soltar
+- [x] `ptt.rs`: restaura o estado anterior, ignora autorepeat, toggle durante o hold muda o que volta · 5 testes; E2E com xdotool keydown/keyup
+- [x] Spike: eventos Pressed/Released do X11 segurando a tecla · sem debounce: o global-hotkey liga DETECTABLE_AUTO_REPEAT do XKB e deduplica; Released vem ao soltar a tecla principal
+- [x] Pílula "No ar · segurando" e retorno ao soltar
 - [ ] Servidor: `Cmd` para a extensão, `result` vira pílula, aviso "Meet não conectado"
 - [ ] `content.js`: câmera, mão e sair por aria-label pt/en; "Botão não encontrado no Meet"
 - [ ] Celular: botões câmera, mão e sair, apagados sem Meet; vibra no ack
