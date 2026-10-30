@@ -23,11 +23,15 @@ jobs:
       - run: cargo test
         working-directory: src-tauri
       - id: build
-        run: echo "deb=src-tauri/$(./scripts/package-deb.sh | tail -1)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "deb=src-tauri/$(./scripts/package-deb.sh | tail -1)" >> "$GITHUB_OUTPUT"
+          echo "zip=$(./scripts/package-extension.sh)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
           name: linux
-          path: ${{ steps.build.outputs.deb }}
+          path: |
+            ${{ steps.build.outputs.deb }}
+            ${{ steps.build.outputs.zip }}
 
   windows:
     runs-on: windows-latest
@@ -55,6 +59,6 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: dist
-      - run: gh release create "$GITHUB_REF_NAME" dist/*/* --repo "$GITHUB_REPOSITORY" --title "Muttei $GITHUB_REF_NAME" --generate-notes
+      - run: gh release create "$GITHUB_REF_NAME" $(find dist -type f) --repo "$GITHUB_REPOSITORY" --title "Muttei $GITHUB_REF_NAME" --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}

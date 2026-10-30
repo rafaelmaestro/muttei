@@ -7,16 +7,26 @@ const LEAVE = /sair da chamada|leave call/i;
 let want = null, port = null, last = '';
 const applied = new WeakMap();
 
-const label = b => b.getAttribute('aria-label') || '';
-const find = test => [...document.querySelectorAll('button, [role="button"]')].find(b => test(label(b)));
-const micButton = () => [...document.querySelectorAll('[data-is-muted]')].find(b => MIC.test(label(b)) && !CAM.test(label(b)));
-const camButton = () => [...document.querySelectorAll('[data-is-muted]')].find(b => CAM.test(label(b)));
+// toggles are labelled with the action they perform: "Ativar microfone" means it is muted now
+const TOGGLE = /^\s*((des)?ativar|turn (on|off))\b/i;
+const OFF_NOW = /^\s*(ativar|turn on)\b/i;
+
+const label = b => b.getAttribute('aria-label') || b.getAttribute('data-tooltip') || '';
+const buttons = () => [...document.querySelectorAll('button, [role="button"]')];
+const find = test => buttons().find(b => test(label(b)));
+const toggle = (re, not) => {
+  const ok = b => re.test(label(b)) && !(not && not.test(label(b)));
+  return [...document.querySelectorAll('[data-is-muted]')].find(ok) || buttons().find(b => ok(b) && TOGGLE.test(label(b)));
+};
+const isOff = b => b.hasAttribute('data-is-muted') ? b.getAttribute('data-is-muted') === 'true' : OFF_NOW.test(label(b));
+const micButton = () => toggle(MIC, CAM);
+const camButton = () => toggle(CAM);
 const handButton = () => find(l => HAND.test(l));
 const leaveButton = () => find(l => LEAVE.test(l));
 
 function status() {
   const cam = camButton(), hand = handButton();
-  return { t: 'status', in_call: !!leaveButton(), cam: cam ? cam.getAttribute('data-is-muted') !== 'true' : null, hand: !!hand && HAND_UP.test(label(hand)) };
+  return { t: 'status', in_call: !!leaveButton(), cam: cam ? !isOff(cam) : null, hand: !!hand && HAND_UP.test(label(hand)) };
 }
 
 function report(force) {
@@ -25,11 +35,14 @@ function report(force) {
 }
 
 // one-way (app → Meet): apply each wanted state once per button, so a manual click in Meet is never fought
+let seen;
 function sync() {
   const b = micButton();
+  const what = b ? `${label(b)} · data-is-muted=${b.getAttribute('data-is-muted')}` : 'botão de microfone não encontrado';
+  if (what !== seen) { seen = what; console.info('[muttei]', what, '· estado do app:', want === null ? 'desconhecido' : want ? 'mudo' : 'no ar'); }
   if (want !== null && b && applied.get(b) !== want) {
     applied.set(b, want);
-    if ((b.getAttribute('data-is-muted') === 'true') !== want) b.click();
+    if (isOff(b) !== want) b.click();
   }
   report(false);
 }

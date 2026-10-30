@@ -145,9 +145,21 @@ sudo apt install ./src-tauri/target/release/bundle/deb/Muttei_0.2.0_amd64.deb
 cd src-tauri && cargo tauri dev
 ```
 
-**Para a extensão do Meet:**
-1. Abra `chrome://extensions` e ligue o modo desenvolvedor.
-2. Clique em "Carregar sem compactação" e escolha a pasta `extension/`.
-3. A primeira extensão que se conecta é aprovada sozinha. As outras precisam ser pareadas em Ajustes > Meet.
+### Extensão do Meet
+
+Com o Muttei aberto, a extensão se conecta sozinha. A primeira é aprovada automaticamente. Para um segundo navegador, use Ajustes > Meet > Conectar outro navegador. Depois de instalar, recarregue as abas do Meet que já estavam abertas.
+
+**Instalar sem a loja:** funciona no Chrome, no Edge, no Brave e em outros navegadores baseados no Chromium.
+1. Abra `chrome://extensions` (no Edge, `edge://extensions`) e ligue o modo desenvolvedor.
+2. Clique em "Carregar sem compactação" e escolha a pasta `extension/`. Também dá para usar o `muttei-extension-*.zip` da [última versão](../../releases/latest), descompactado.
+
+**Publicar na Chrome Web Store:**
+1. Crie uma conta em [chrome.google.com/webstore/devconsole](https://chrome.google.com/webstore/devconsole). A taxa é única, de US$ 5.
+2. Suba `version` em `extension/manifest.json` e gere o pacote com `./scripts/package-extension.sh`. O zip sai em `dist/`, e cada release do GitHub também traz um.
+3. No painel, clique em "Novo item" e envie o zip.
+4. Preencha a página e a aba de privacidade com os textos de [`extension/STORE.md`](extension/STORE.md). As imagens ficam em `extension/store/`.
+5. Envie para revisão. A primeira costuma levar de alguns dias a algumas semanas. As atualizações seguem o mesmo caminho: suba a versão, gere o zip e envie em "Pacote".
+
+Para publicar no Edge Add-ons ([partner.microsoft.com](https://partner.microsoft.com/dashboard/microsoftedge/overview)), use o mesmo zip e os mesmos textos. Lá a conta é gratuita.
 
 **Para publicar uma versão:** suba a versão em `src-tauri/tauri.conf.json` e envie uma tag `v*`, por exemplo `git tag v0.2.0 && git push --tags`. O workflow `Release` roda os testes no Linux e no Windows, gera o `.deb` e o `.exe` e cria a release com os dois.
