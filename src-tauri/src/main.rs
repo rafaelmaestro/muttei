@@ -180,8 +180,10 @@ impl Core {
         if kind != "warn" && !self.s.lock().unwrap().pill {
             return;
         }
-        place_pill(&self.app);
-        let _ = self.app.emit_to("pill", "pill", serde_json::json!({"kind": kind, "text": text, "sub": sub}));
+        let payload = serde_json::json!({"kind": kind, "text": text, "sub": sub});
+        for label in place_pills(&self.app) {
+            let _ = self.app.emit_to(label.as_str(), "pill", payload.clone());
+        }
     }
 
     fn effects(&self, m: bool, src: &str, sound: bool) {
@@ -408,8 +410,8 @@ impl Core {
     }
 }
 
-fn overlay(app: &AppHandle, label: &str, w: f64, h: f64) -> tauri::Result<WebviewWindow> {
-    let win = WebviewWindowBuilder::new(app, label, WebviewUrl::App(format!("{label}.html").into()))
+fn overlay(app: &AppHandle, label: &str, w: f64, h: f64, page: &str) -> tauri::Result<WebviewWindow> {
+    let win = WebviewWindowBuilder::new(app, label, WebviewUrl::App(page.into()))
         .inner_size(w, h)
         .decorations(false)
         .transparent(true)
@@ -427,19 +429,30 @@ fn overlay(app: &AppHandle, label: &str, w: f64, h: f64) -> tauri::Result<Webvie
     Ok(win)
 }
 
-fn place_pill(app: &AppHandle) {
-    let Some(w) = app.get_webview_window("pill") else { return };
-    let mon = app
-        .cursor_position()
-        .ok()
-        .and_then(|p| app.monitor_from_point(p.x, p.y).ok().flatten())
-        .or_else(|| app.primary_monitor().ok().flatten());
-    if let Some(m) = mon {
+fn place_pills(app: &AppHandle) -> Vec<String> {
+    let monitors = app.available_monitors().unwrap_or_default();
+    let mut labels = vec![];
+    for (i, m) in monitors.iter().enumerate() {
+        let label = format!("pill-{i}");
+        let w = match app.get_webview_window(&label) {
+            Some(w) => w,
+            None => match overlay(app, &label, PILL_W, PILL_H, "pill.html") {
+                Ok(w) => w,
+                Err(_) => continue,
+            },
+        };
         let k = m.scale_factor();
         let x = m.position().x as f64 + (m.size().width as f64 - PILL_W * k) / 2.0;
         let y = m.position().y as f64 + TOP * k;
         let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
+        labels.push(label);
     }
+    for (label, w) in app.webview_windows() {
+        if label.starts_with("pill-") && !labels.contains(&label) {
+            let _ = w.close();
+        }
+    }
+    labels
 }
 
 fn place_dot(app: &AppHandle, corner: &str) {
@@ -568,9 +581,8 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
         .transparent(true)
         .visible(first_run)
         .build()?;
-    overlay(app, "pill", PILL_W, PILL_H)?;
-    place_pill(app);
-    overlay(app, "dot", DOT, DOT)?;
+    place_pills(app);
+    overlay(app, "dot", DOT, DOT, "dot.html")?;
 
     let status = MenuItem::with_id(app, "status", "Microfone no ar", false, None::<&str>)?;
     let toggle = MenuItem::with_id(app, "toggle", "Mutar", true, None::<&str>)?;
