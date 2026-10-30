@@ -216,7 +216,7 @@ function dialog(html, onClose){
   $('#scrim').onclick = e=>{ if(e.target.id==='scrim' || e.target.dataset.close!==undefined){ $('#overlay').innerHTML=''; onClose&&onClose(); } };
 }
 function intro(){
-  dialog(`<h3>Bem-vindo ao Muttei</h3><p>Um botão para o seu microfone, em qualquer app.</p>
+  dialog(`<h3>Bem-vindo ao Muttei</h3><p>Seu microfone em um atalho, em qualquer chamada.</p>
     <div class="steps">
       <div><b>1</b><span>Aperte <kbd>${esc(S.shortcut)}</kbd> para mutar. Aperte de novo para voltar ao ar.</span></div>
       <div><b>2</b><span>A pílula no topo, o ícone vermelho na tray e o ponto no canto mostram quando você está mudo.</span></div>

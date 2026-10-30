@@ -93,6 +93,15 @@ https://claude.ai/artifact/CaqrnFcSV88Hp2UaVBwaWB (v1, 30/10)
 - [x] Janelas de pílula/ponto não aceitam foco (o GNOME mostrava "Muttei pill-1 is ready")
 - [ ] Manual: câmera/mão/sair num Meet real, pelo atalho e pelo celular
 
+## 9. Marca
+- [x] Conceitos A/B/C; escolhido A (Interruptor), com a chave e o "ei" em `#ff5555`
+- [x] `brand/build.py` gera 18 SVGs mestras: cor, escuro (traço afinado), uma cor, corte para 16 px, lockups, ícones
+- [x] Ícones do app (Tauri), tray (no ar/mudo), extensão e favicon da página do celular trocados · tray conferida na barra
+- [x] Set web (favicon.ico, PNGs, maskable, manifest) e prancha com mockups em `brand/presentation/`
+- [x] `brand/GUIDELINES.md`: área de proteção, tamanho mínimo, cores, tipografia, o que não fazer
+- [x] Slogan próprio ("Seu microfone em um atalho"); saiu o que repetia o do app de origem
+- [ ] Busca de marca registrada antes de publicar
+
 ## Fora do escopo
 - [-] Integração com Teams
 - [-] Trial / licença / pagamento

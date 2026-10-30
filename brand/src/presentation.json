@@ -1,0 +1,34 @@
+{
+  "brand": "Muttei",
+  "tagline": "Seu microfone em um atalho",
+  "brief": "App para Linux (GNOME/X11) que muta o microfone de qualquer app com um atalho global, com indicadores na tela, regras automáticas, controle pelo celular e sincronização com o Google Meet. Para quem passa o dia em chamadas e quer ter certeza do estado do microfone.",
+  "adjectives": ["instantâneo", "discreto", "confiável", "técnico"],
+  "criteria": "Sucesso: legível a 16 px na barra do GNOME, funciona em uma cor, conversa com a paleta Dracula do app e evita o mic cortado que todo sistema usa.",
+  "industry": "software",
+  "nav": ["Recursos", "Celular", "Baixar"],
+  "brand_color": "#282a36",
+  "greyscale": false,
+  "designer": "Muttei",
+  "round": 2,
+  "concepts": [
+    {
+      "name": "Interruptor",
+      "symbol": "../logo/symbol.svg",
+      "lockup": "../logo/horizontal.svg",
+      "symbol_on_tile": "../logo/symbol-dark.svg",
+      "lockup_on_dark": "../logo/horizontal-dark.svg",
+      "tile_color": "#282a36",
+      "idea": "A cápsula do microfone é o trilho de um interruptor; a bolinha vermelha é a chave.",
+      "rationale": [
+        "Diz 'liga e desliga o mic' sem o clichê do mic cortado",
+        "O vermelho da chave e do 'ei' é o mesmo sinal de mudo do app",
+        "Corte simplificado próprio para 16 px; versão em uma cor usa a chave vazada"
+      ]
+    }
+  ],
+  "recommendation": "Interruptor: direção aprovada, com o 'ei' e a chave no vermelho #ff5555.",
+  "next_steps": [
+    "Busca de marca registrada antes de publicar",
+    "Usar o lockup horizontal no README e na página do app"
+  ]
+}
