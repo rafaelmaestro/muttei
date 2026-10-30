@@ -1,6 +1,8 @@
+use serde::Serialize;
+use serde_json::Value;
 use std::process::{Command, Stdio};
 
-const SOURCE: &str = "@DEFAULT_AUDIO_SOURCE@";
+pub const DEFAULT: &str = "@DEFAULT_AUDIO_SOURCE@";
 const SOUNDS: &str = "/usr/share/sounds/freedesktop/stereo";
 
 pub fn parse_muted(out: &str) -> Option<bool> {
@@ -8,21 +10,61 @@ pub fn parse_muted(out: &str) -> Option<bool> {
     Some(line.contains("[MUTED]"))
 }
 
-pub fn get_muted() -> Option<bool> {
-    let out = Command::new("wpctl").args(["get-volume", SOURCE]).output().ok()?;
+pub fn get_muted(target: &str) -> Option<bool> {
+    let out = Command::new("wpctl").args(["get-volume", target]).output().ok()?;
     parse_muted(&String::from_utf8_lossy(&out.stdout))
 }
 
-pub fn set_muted(muted: bool) -> bool {
+pub fn set_muted(target: &str, muted: bool) -> bool {
     Command::new("wpctl")
-        .args(["set-mute", SOURCE, if muted { "1" } else { "0" }])
+        .args(["set-mute", target, if muted { "1" } else { "0" }])
         .status()
         .map(|s| s.success())
         .unwrap_or(false)
 }
 
-pub fn command_text(muted: bool) -> String {
-    format!("wpctl set-mute {SOURCE} {}", muted as u8)
+pub fn command_text(target: &str, muted: bool) -> String {
+    format!("wpctl set-mute {target} {}", muted as u8)
+}
+
+#[derive(Serialize, Clone, PartialEq, Debug)]
+pub struct Mic {
+    pub id: u64,
+    pub name: String,
+    pub desc: String,
+    pub def: bool,
+}
+
+pub fn parse_mics(dump: &str) -> Vec<Mic> {
+    let Ok(Value::Array(objs)) = serde_json::from_str(dump) else { return vec![] };
+    let def = objs
+        .iter()
+        .filter(|o| o["props"]["metadata.name"] == "default")
+        .flat_map(|o| o["metadata"].as_array().cloned().unwrap_or_default())
+        .find(|m| m["key"] == "default.audio.source")
+        .and_then(|m| m["value"]["name"].as_str().map(String::from));
+    objs.iter()
+        .filter(|o| o["info"]["props"]["media.class"] == "Audio/Source")
+        .filter_map(|o| {
+            let p = &o["info"]["props"];
+            let name = p["node.name"].as_str()?.to_string();
+            Some(Mic {
+                id: o["id"].as_u64()?,
+                desc: p["node.description"].as_str().unwrap_or(&name).split_whitespace().collect::<Vec<_>>().join(" "),
+                def: def.as_deref() == Some(name.as_str()),
+                name,
+            })
+        })
+        .collect()
+}
+
+// wpctl only takes numeric ids, which change on replug, so the setting stores node.name
+pub fn mics() -> Vec<Mic> {
+    Command::new("pw-dump").output().map(|o| parse_mics(&String::from_utf8_lossy(&o.stdout))).unwrap_or_default()
+}
+
+pub fn target(mics: &[Mic], chosen: Option<&str>) -> String {
+    chosen.and_then(|c| mics.iter().find(|m| m.name == c)).map(|m| m.id.to_string()).unwrap_or_else(|| DEFAULT.into())
 }
 
 // ponytail: system theme sounds; ship our own .oga if these feel off
@@ -45,5 +87,22 @@ mod tests {
         assert_eq!(parse_muted("Volume: 0.94 [MUTED]\n"), Some(true));
         assert_eq!(parse_muted("Translate ID error: '@DEFAULT_AUDIO_SOURCE@' is not a valid ID\n"), None);
         assert_eq!(parse_muted(""), None);
+    }
+
+    #[test]
+    fn lists_mics_and_resolves_the_chosen_one() {
+        let dump = r#"[
+          {"id":42,"type":"PipeWire:Interface:Node","info":{"props":{"media.class":"Audio/Source","node.name":"usb-mic","node.description":"fifine  Microphone"}}},
+          {"id":57,"type":"PipeWire:Interface:Node","info":{"props":{"media.class":"Audio/Source","node.name":"headset","node.description":"Headset"}}},
+          {"id":59,"type":"PipeWire:Interface:Node","info":{"props":{"media.class":"Audio/Sink","node.name":"hdmi"}}},
+          {"id":36,"type":"PipeWire:Interface:Metadata","props":{"metadata.name":"default"},"metadata":[{"key":"default.audio.source","value":{"name":"usb-mic"}}]}
+        ]"#;
+        let m = parse_mics(dump);
+        assert_eq!(m.len(), 2);
+        assert_eq!((m[0].desc.as_str(), m[0].def, m[1].def), ("fifine Microphone", true, false));
+        assert_eq!(target(&m, Some("headset")), "57");
+        assert_eq!(target(&m, Some("unplugged")), DEFAULT);
+        assert_eq!(target(&m, None), DEFAULT);
+        assert!(parse_mics("not json").is_empty());
     }
 }

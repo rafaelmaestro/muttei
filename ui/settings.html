@@ -115,6 +115,8 @@ function paneRegras(){
   <div class="grp">
     <div class="r"><div class="lb">Mutar ao travar a tela<span class="mono">org.gnome.ScreenSaver · ActiveChanged</span></div>
       <button class="btn sm" id="simLock">Travar agora</button>${sw('swLock',S.lock_rule,'Mutar ao travar a tela')}</div>
+    <div class="r"><div class="lb">Mutar ao entrar numa chamada do Meet<span>${S.browsers.length?'Cada chamada nova começa no mudo':'Precisa da extensão do Muttei no navegador (Ajustes &gt; Meet)'}</span></div>
+      ${sw('swMeetRule',S.meet_rule,'Mutar ao entrar numa chamada do Meet')}</div>
     <div class="r"><div class="lb">Mutar ao abrir um destes apps<span>Dispara quando o app aparece, não enquanto ele fica aberto</span></div>${sw('swApp',S.app_rule,'Mutar ao abrir um app')}</div>
     <div class="r" style="display:grid;gap:8px">
       <div class="chips">${S.apps.map(a=>`<span class="chip">${esc(a)}<button data-rm="${esc(a)}" aria-label="Remover ${esc(a)}">✕</button></span>`).join('')||'<span class="muted">Nenhum app na lista.</span>'}</div>
@@ -167,8 +169,11 @@ function paneMeet(){
   <div class="grp"><div class="r"><span class="note">Servidor local em <span class="mono">127.0.0.1</span>, só aceita origem <span class="mono">chrome-extension://</span>. A sincronização é de mão única: mutar pelo botão do próprio Meet não muda o microfone do sistema.</span></div></div>`;
 }
 function paneGeral(){
+  const def = S.mics.find(m=>m.def), opts = S.mic_gone ? [...S.mics, {name:S.mic, desc:S.mic_desc, gone:true}] : S.mics;
   return `<h2>Geral</h2>
   <div class="grp">
+    <div class="r"><div class="lb">Microfone<span>${S.mic_gone?`<span style="color:var(--orange)">${esc(S.mic_desc)} está desconectado. Usando o padrão até ele voltar.</span>`:'O atalho, as regras e o celular mutam este microfone'}</span></div>
+      <select class="in" id="micSel"><option value="">Padrão do sistema${def?` · ${esc(def.desc)}`:''}</option>${opts.map(m=>`<option value="${esc(m.name)}">${esc(m.desc)}${m.gone?' (desconectado)':''}</option>`).join('')}</select></div>
     <div class="r"><div class="lb">Som ao mutar e desmutar<span>Toca só na saída de áudio, nunca entra no microfone</span></div><button class="btn sm" id="testSnd">Testar</button>${sw('swSound',S.sound,'Som')}</div>
     <div class="r"><div class="lb">Pílula no topo da tela<span>"No ar" ou "Mudo" por 1,5 s a cada troca</span></div>${sw('swPill',S.pill,'Pílula')}</div>
     <div class="r"><div class="lb">Indicador fixo<span>Fica no canto da tela enquanto estiver mudo. Aparece em capturas de tela no X11.</span></div>
@@ -192,6 +197,9 @@ function renderPane(){
   on('scReset', ()=>invoke('reset_shortcut').catch(()=>{}));
   on('swLock', ()=>patch({lock_rule:!S.lock_rule}));
   on('swApp', ()=>patch({app_rule:!S.app_rule}));
+  on('swMeetRule', ()=>patch({meet_rule:!S.meet_rule}));
+  const ms = sp.querySelector('#micSel');
+  if(ms){ ms.value=S.mic||''; ms.onchange=()=>{ const m=S.mics.find(x=>x.name===ms.value); patch({mic:ms.value||null, mic_desc:m?m.desc:''}); }; }
   on('simLock', ()=>invoke('lock_now'));
   sp.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>patch({apps:S.apps.filter(a=>a!==b.dataset.rm)}));
   const f = sp.querySelector('#addApp');

@@ -41,7 +41,7 @@ O microfone é do sistema, não do app da chamada. Então o botão também dever
 ## O que ele faz
 
 ### Um atalho para tudo
-`Ctrl+Shift+M` funciona com o Meet, o Zoom, o Discord, o Slack, o navegador e o que mais usar o microfone, porque age no dispositivo e não no app. Nos Ajustes você troca a tecla e define atalhos opcionais para segurar para falar e segurar para tossir. Os atalhos novos começam sem tecla.
+`Ctrl+Shift+M` funciona com o Meet, o Zoom, o Discord, o Slack, o navegador e o que mais usar o microfone, porque age no dispositivo e não no app. Nos Ajustes você troca a tecla e define atalhos opcionais para segurar para falar e segurar para tossir. Os atalhos novos começam sem tecla. Por padrão o Muttei muta o microfone padrão do sistema. Em Ajustes > Geral dá para fixar outro, como o headset. Se ele for desconectado, o app volta para o padrão até o microfone voltar.
 
 <p align="center"><img src="docs/shots/ajustes.png" alt="Aba Atalho dos Ajustes do Muttei" width="640"></p>
 
@@ -51,7 +51,7 @@ A pílula aparece em todos os monitores a cada mudança. Enquanto o microfone es
 <p align="center"><img src="docs/shots/indicadores.png" alt="Pílulas Mudo, No ar e Mão levantada, e os quatro estilos de indicador" width="560"></p>
 
 ### Regras que mutam por você
-O Muttei muta ao travar a tela e quando abre um app da sua lista, por exemplo o `zoom`.
+O Muttei muta ao travar a tela, ao entrar numa chamada do Meet e quando abre um app da sua lista, por exemplo o `zoom`. As regras só fecham o microfone, nunca abrem.
 
 ### O celular vira o botão
 Se você levantou da mesa, abra a página do Muttei no celular, na mesma rede Wi-Fi. Não precisa instalar nada. O pareamento é por QR e por um código de 4 dígitos, e cada aparelho pode ser revogado nos Ajustes. Com uma chamada do Meet aberta, aparecem também os botões de câmera, mão e sair.
@@ -110,16 +110,23 @@ Não. As fontes, a página do celular e a extensão funcionam sem internet.
 
 ## Instalar
 
-O Muttei é feito para Ubuntu 24.04 e outras distros com GNOME e PipeWire.
+O Muttei é feito para Ubuntu 22.04 ou mais novo e outras distros com GNOME e PipeWire.
 
+Baixe o `.deb` da [última versão](../../releases/latest) e instale:
+
+```sh
+sudo apt install ./Muttei_*_amd64.deb
+```
+
+O `.deb` já puxa as dependências de execução: `wireplumber`, `pipewire-bin`, `libglib2.0-bin` e `sound-theme-freedesktop`.
+
+**Para compilar:**
 ```sh
 sudo apt install libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev build-essential pkg-config
 cargo install tauri-cli --version '^2'
 ./scripts/package-deb.sh
 sudo apt install ./src-tauri/target/release/bundle/deb/Muttei_0.1.0_amd64.deb
 ```
-
-O `.deb` já puxa as dependências de execução: `wireplumber`, `pipewire-bin`, `libglib2.0-bin` e `sound-theme-freedesktop`.
 
 **Para desenvolver:**
 ```sh
@@ -130,3 +137,5 @@ cd src-tauri && cargo tauri dev
 1. Abra `chrome://extensions` e ligue o modo desenvolvedor.
 2. Clique em "Carregar sem compactação" e escolha a pasta `extension/`.
 3. A primeira extensão que se conecta é aprovada sozinha. As outras precisam ser pareadas em Ajustes > Meet.
+
+**Para publicar uma versão:** suba a versão em `src-tauri/tauri.conf.json` e envie uma tag `v*`, por exemplo `git tag v0.2.0 && git push --tags`. O workflow `Release` roda os testes, gera o `.deb` e cria a release com ele.

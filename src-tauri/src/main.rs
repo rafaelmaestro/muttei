@@ -67,6 +67,8 @@ pub struct Core {
     pair_until: Mutex<Option<Instant>>,
     sc_errs: Mutex<BTreeMap<String, String>>,
     last: Mutex<String>,
+    mics: Mutex<Vec<audio::Mic>>,
+    target: Mutex<String>,
     running: Mutex<HashSet<String>>,
     tray: Mutex<Option<Tray>>,
     hold: Mutex<ptt::Hold>,
@@ -105,6 +107,11 @@ struct Snapshot {
     autostart: bool,
     lock_rule: bool,
     app_rule: bool,
+    meet_rule: bool,
+    mic: Option<String>,
+    mic_desc: String,
+    mics: Vec<audio::Mic>,
+    mic_gone: bool,
     apps: Vec<String>,
     running: Vec<String>,
     phone_on: bool,
@@ -139,6 +146,31 @@ fn now_label() -> String {
 impl Core {
     pub fn muted(&self) -> bool {
         self.muted.load(Ordering::SeqCst)
+    }
+
+    fn target(&self) -> String {
+        self.target.lock().unwrap().clone()
+    }
+
+    fn refresh_mics(&self) {
+        let mics = audio::mics();
+        let target = audio::target(&mics, self.settings().mic.as_deref());
+        let retarget = *self.target.lock().unwrap() != target;
+        let relist = *self.mics.lock().unwrap() != mics;
+        *self.mics.lock().unwrap() = mics;
+        if retarget {
+            let m = {
+                let _g = self.audio_lock.lock().unwrap();
+                *self.target.lock().unwrap() = target.clone();
+                audio::get_muted(&target).unwrap_or(false)
+            };
+            self.muted.store(m, Ordering::SeqCst);
+            *self.last.lock().unwrap() = format!("wpctl get-volume {target}");
+            self.update_indicators();
+        }
+        if retarget || relist {
+            self.emit_state();
+        }
     }
 
     pub fn hostname(&self) -> String {
@@ -176,6 +208,11 @@ impl Core {
             autostart: s.autostart,
             lock_rule: s.lock_rule,
             app_rule: s.app_rule,
+            meet_rule: s.meet_rule,
+            mic_gone: s.mic.is_some() && *self.target.lock().unwrap() == audio::DEFAULT,
+            mic: s.mic.clone(),
+            mic_desc: s.mic_desc.clone(),
+            mics: self.mics.lock().unwrap().clone(),
             apps: s.apps.clone(),
             running: self.running.lock().unwrap().iter().filter(|r| s.apps.contains(r)).cloned().collect(),
             phone_on: s.phone_on,
@@ -250,7 +287,7 @@ impl Core {
             if m == self.muted() {
                 return m;
             }
-            let ok = audio::set_muted(m);
+            let ok = audio::set_muted(&self.target(), m);
             if ok {
                 self.muted.store(m, Ordering::SeqCst);
             }
@@ -260,7 +297,7 @@ impl Core {
             self.pill("warn", "O microfone não mudou", "wpctl falhou");
             return self.muted();
         }
-        *self.last.lock().unwrap() = audio::command_text(m);
+        *self.last.lock().unwrap() = audio::command_text(&self.target(), m);
         self.effects(m, src, true);
         m
     }
@@ -370,14 +407,19 @@ impl Core {
     }
 
     pub fn set_meet_status(&self, st: Option<MeetStatus>) {
-        let changed = {
+        let (changed, joined) = {
             let mut m = self.meet.lock().unwrap();
+            // only a seen pre-join screen counts, so reconnecting mid-call doesn't mute
+            let joined = matches!(*m, Some(MeetStatus { in_call: false, .. })) && st.is_some_and(|s| s.in_call);
             let changed = *m != st;
             *m = st;
-            changed
+            (changed, joined)
         };
         if changed {
             let _ = self.tx.send(Event::Meet);
+        }
+        if joined && self.settings().meet_rule && !self.muted() {
+            self.set_muted(true, "regra: entrou no Meet");
         }
     }
 
@@ -588,6 +630,9 @@ impl Core {
             let a = self.app.autolaunch();
             let _ = if new.autostart { a.enable() } else { a.disable() };
         }
+        if old.mic != new.mic {
+            self.refresh_mics();
+        }
         if old.dot_corner != new.dot_corner {
             ensure_dots(&self.app, &new.dot_corner);
         }
@@ -772,9 +817,11 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
     let s = Settings::load();
     let first_run = !s.intro_seen;
     let (tx, _) = broadcast::channel(32);
+    let mics = audio::mics();
+    let target = audio::target(&mics, s.mic.as_deref());
     let core = Arc::new(Core {
         app: app.clone(),
-        muted: AtomicBool::new(audio::get_muted().unwrap_or(false)),
+        muted: AtomicBool::new(audio::get_muted(&target).unwrap_or(false)),
         audio_lock: Mutex::new(()),
         locked_mute: AtomicBool::new(false),
         s: Mutex::new(s.clone()),
@@ -786,7 +833,9 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
         live: Mutex::new(HashMap::new()),
         pair_until: Mutex::new(None),
         sc_errs: Mutex::new(BTreeMap::new()),
-        last: Mutex::new("wpctl get-volume @DEFAULT_AUDIO_SOURCE@".into()),
+        last: Mutex::new(format!("wpctl get-volume {target}")),
+        mics: Mutex::new(mics),
+        target: Mutex::new(target),
         running: Mutex::new(HashSet::new()),
         tray: Mutex::new(None),
         hold: Mutex::new(ptt::Hold::default()),
@@ -857,7 +906,7 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
         // ponytail: polling wpctl; switch to pw-mon events if it ever shows up in CPU
         let changed = {
             let _g = c.audio_lock.lock().unwrap();
-            match audio::get_muted() {
+            match audio::get_muted(&c.target()) {
                 Some(m) if m != c.muted() => {
                     c.muted.store(m, Ordering::SeqCst);
                     Some(m)
@@ -887,6 +936,7 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
         loop {
             std::thread::sleep(Duration::from_secs(2));
             let now = rules::running();
+            c.refresh_mics();
             let s = c.settings();
             if s.app_rule && !c.muted() {
                 if let Some(name) = rules::newly_started(&prev, &now, &s.apps) {
