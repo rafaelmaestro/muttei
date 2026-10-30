@@ -101,6 +101,8 @@ https://claude.ai/artifact/CaqrnFcSV88Hp2UaVBwaWB (v1, 30/10)
 - [x] `brand/GUIDELINES.md`: área de proteção, tamanho mínimo, cores, tipografia, o que não fazer
 - [x] Slogan próprio ("Seu microfone em um atalho"); saiu o que repetia o do app de origem
 - [x] Logo nas telas: barra da janela de Ajustes, intro, topo da página do celular (`/logo.svg`), README · `build.py` copia as SVGs da UI para `ui/`
+- [x] Indicador fixo redesenhado: Chave (padrão), Selo, Etiqueta, Halo × 4 movimentos, escolha em Ajustes > Geral · conferido no desktop
+- [x] `.deb` gerado; `scripts/package-deb.sh` reempacota porque o bundler do Tauri grava UID de 9 dígitos no header `ar` e o dpkg recusa
 - [ ] Busca de marca registrada antes de publicar
 
 ## Fora do escopo

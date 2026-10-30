@@ -4,7 +4,14 @@
 <body data-c="tr">
 <div class="dot" id="dot" hidden title="Indicador fixo: microfone mudo"></div>
 <script>
-const show = s => { document.body.dataset.c = s.dot_corner; document.getElementById('dot').hidden = !(s.muted && s.dot); };
+const KINDS = {sw:'<div class="ind-sw"><i class="k"></i></div>', seal:'<div class="ind-seal"></div>', tag:'<div class="ind-tag"><i class="k"></i>MUDO</div>', halo:'<div class="ind-halo"></div>'};
+const show = s => {
+  const d = document.getElementById('dot'), on = s.muted && s.dot;
+  document.body.dataset.c = s.dot_corner; d.dataset.anim = s.dot_anim; d.hidden = !on;
+  // only rebuild on a real change, so the entry animation replays on mute and not on every state event
+  const key = on ? s.dot_style + s.dot_anim : '';
+  if (d.dataset.key !== key) { d.dataset.key = key; d.innerHTML = key ? (KINDS[s.dot_style] || KINDS.sw) : ''; }
+};
 window.__TAURI__.event.listen('state', ({payload}) => show(payload));
 window.__TAURI__.core.invoke('get_state').then(show);
 requestAnimationFrame(() => window.__TAURI__.core.invoke('dot_ready'));

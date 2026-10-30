@@ -167,8 +167,12 @@ function paneGeral(){
   <div class="grp">
     <div class="r"><div class="lb">Som ao mutar e desmutar<span>Toca só na saída de áudio, nunca entra no microfone</span></div><button class="btn sm" id="testSnd">Testar</button>${sw('swSound',S.sound,'Som')}</div>
     <div class="r"><div class="lb">Pílula no topo da tela<span>"No ar" ou "Mudo" por 1,5 s a cada troca</span></div>${sw('swPill',S.pill,'Pílula')}</div>
-    <div class="r"><div class="lb">Indicador fixo<span>Ponto vermelho enquanto estiver mudo. Aparece em capturas de tela no X11.</span></div>
+    <div class="r"><div class="lb">Indicador fixo<span>Fica no canto da tela enquanto estiver mudo. Aparece em capturas de tela no X11.</span></div>
       <select class="in" id="corner" ${S.dot?'':'disabled'}><option value="tr">canto superior direito</option><option value="tl">canto superior esquerdo</option><option value="br">canto inferior direito</option><option value="bl">canto inferior esquerdo</option></select>${sw('swDot',S.dot,'Indicador fixo')}</div>
+    <div class="r"><div class="lb">Estilo do indicador<span>${S.muted?'Veja no canto da tela':'Mute para ver no canto da tela'}</span></div>
+      <select class="in" id="dotStyle" ${S.dot?'':'disabled'}><option value="sw">Chave</option><option value="seal">Selo</option><option value="tag">Etiqueta</option><option value="halo">Halo</option></select>
+      <select class="in" id="dotAnim" ${S.dot?'':'disabled'}><option value="breathe">respiração lenta</option><option value="slide">entrada + parado</option><option value="both">entrada + respiração</option><option value="none">sem movimento</option></select>
+      ${S.muted?'':'<button class="btn sm" id="muteSee">Mutar para ver</button>'}</div>
     <div class="r"><div class="lb">Iniciar com o sistema<span class="mono">~/.config/autostart/Muttei.desktop</span></div>${sw('swAuto',S.autostart,'Iniciar com o sistema')}</div>
     <div class="r"><div class="lb">Introdução<span>A tela que aparece na primeira execução</span></div><button class="btn sm" id="introBtn">Mostrar</button></div>
   </div>`;
@@ -205,6 +209,9 @@ function renderPane(){
   on('swAuto', ()=>patch({autostart:!S.autostart}));
   on('introBtn', intro);
   const c = sp.querySelector('#corner'); if(c){ c.value=S.dot_corner; c.onchange=()=>patch({dot_corner:c.value}); }
+  const ds = sp.querySelector('#dotStyle'); if(ds){ ds.value=S.dot_style; ds.onchange=()=>patch({dot_style:ds.value}); }
+  const da = sp.querySelector('#dotAnim'); if(da){ da.value=S.dot_anim; da.onchange=()=>patch({dot_anim:da.value}); }
+  on('muteSee', ()=>invoke('toggle_mute'));
   if(focusId){ const el = document.getElementById(focusId); if(el) el.focus(); }
   const rc = document.getElementById('recCombo'); if(rc) rc.focus();
 }

@@ -99,9 +99,27 @@ input.in:focus,select.in:focus{border-color:var(--accent)}
 .pill.hand .ic{background:rgba(241,250,140,.14);color:var(--yellow)}
 .pill .ic svg{width:13px;height:13px}
 .pill small{font:400 11px var(--mono);color:var(--muted)}
-.dot{position:absolute;width:14px;height:14px;border-radius:50%;background:var(--bad);box-shadow:0 0 0 3px rgba(255,85,85,.25),0 0 14px rgba(255,85,85,.6);animation:breathe 2.4s ease-in-out infinite}
+/* indicador fixo: 4 estilos x 4 movimentos, escolhidos em Ajustes > Geral */
+.dot{position:absolute;display:flex}
 body[data-c="tr"] .dot{top:12px;right:12px}body[data-c="tl"] .dot{top:12px;left:12px}body[data-c="br"] .dot{bottom:12px;right:12px}body[data-c="bl"] .dot{bottom:12px;left:12px}
-@keyframes breathe{50%{box-shadow:0 0 0 5px rgba(255,85,85,.12),0 0 18px rgba(255,85,85,.4)}}
+.ind-sw{width:34px;height:18px;border-radius:9px;background:#282a36;box-shadow:0 0 0 1.5px #f8f8f2,0 2px 8px rgba(0,0,0,.45);position:relative}
+.ind-sw .k,.ind-tag .k{width:12px;height:12px;border-radius:50%;background:var(--bad);box-shadow:0 0 8px rgba(255,85,85,.9)}
+.ind-sw .k{position:absolute;left:3px;top:3px}
+.ind-seal{width:28px;height:28px;border-radius:8px;background:#282a36 url(logo-mark.svg) center/20px no-repeat;box-shadow:0 0 0 1.5px var(--bad),0 0 12px rgba(255,85,85,.55),0 2px 8px rgba(0,0,0,.4)}
+.ind-tag{display:flex;align-items:center;gap:6px;height:22px;padding:0 9px 0 5px;border-radius:11px;background:#282a36;box-shadow:0 0 0 1px var(--line),0 2px 8px rgba(0,0,0,.45);font:700 10.5px var(--mono);letter-spacing:.08em;color:var(--fg)}
+.ind-halo{width:14px;height:14px;border-radius:50%;background:var(--bad);box-shadow:0 0 0 2px #282a36,0 0 0 3.5px rgba(248,248,242,.85),0 0 0 9px rgba(255,85,85,.22)}
+.dot[data-anim="breathe"] .k,.dot[data-anim="both"] .k{animation:kglow 2.4s ease-in-out infinite}
+.dot[data-anim="breathe"] .ind-seal,.dot[data-anim="both"] .ind-seal{animation:sglow 2.4s ease-in-out infinite}
+.dot[data-anim="breathe"] .ind-halo,.dot[data-anim="both"] .ind-halo{animation:hglow 2.4s ease-in-out infinite}
+.dot[data-anim="slide"] .ind-sw .k,.dot[data-anim="both"] .ind-sw .k{animation:kslide .45s cubic-bezier(.3,1.4,.5,1) both}
+.dot[data-anim="both"] .ind-sw .k{animation:kslide .45s cubic-bezier(.3,1.4,.5,1) both,kglow 2.4s ease-in-out .45s infinite}
+.dot[data-anim="slide"] .ind-tag,.dot[data-anim="both"] .ind-tag,.dot[data-anim="slide"] .ind-seal,.dot[data-anim="slide"] .ind-halo{animation:pop .35s cubic-bezier(.3,1.5,.5,1) both}
+.dot[data-anim="both"] .ind-tag{animation:pop .35s cubic-bezier(.3,1.5,.5,1) both}
+@keyframes kglow{50%{box-shadow:0 0 2px rgba(255,85,85,.4);filter:brightness(.85)}}
+@keyframes sglow{50%{box-shadow:0 0 0 1.5px var(--bad),0 0 4px rgba(255,85,85,.25),0 2px 8px rgba(0,0,0,.4)}}
+@keyframes hglow{50%{box-shadow:0 0 0 2px #282a36,0 0 0 3.5px rgba(248,248,242,.85),0 0 0 13px rgba(255,85,85,.08)}}
+@keyframes kslide{from{left:19px;background:#6272a4;box-shadow:none}}
+@keyframes pop{from{transform:scale(.4);opacity:0}}
 
 /* overlays */
 .scrim{position:fixed;inset:0;z-index:60;background:rgba(10,10,16,.6);display:flex;justify-content:center;align-items:flex-start;padding:60px 16px 16px;border-radius:10px}
