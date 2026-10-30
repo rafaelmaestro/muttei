@@ -6,6 +6,8 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 #[cfg(target_os = "linux")]
 use std::time::Duration;
+#[cfg(target_os = "macos")]
+pub use crate::mac::{lock_now, running, watch_lock};
 #[cfg(windows)]
 pub use crate::win::{lock_now, running, watch_lock};
 

@@ -2,6 +2,8 @@ use serde::Serialize;
 use serde_json::Value;
 #[cfg(target_os = "linux")]
 use std::process::{Command, Stdio};
+#[cfg(target_os = "macos")]
+pub use crate::mac::{get_muted, mics, play, set_muted};
 #[cfg(windows)]
 pub use crate::win::{get_muted, mics, play, set_muted};
 
@@ -33,6 +35,8 @@ pub fn set_muted(target: &str, muted: bool) -> bool {
 pub fn command_text(target: &str, muted: bool) -> String {
     if cfg!(windows) {
         format!("IAudioEndpointVolume::SetMute({}) · {target}", muted as u8)
+    } else if cfg!(target_os = "macos") {
+        format!("kAudioDevicePropertyMute = {} · {target}", muted as u8)
     } else {
         format!("wpctl set-mute {target} {}", muted as u8)
     }
@@ -41,6 +45,8 @@ pub fn command_text(target: &str, muted: bool) -> String {
 pub fn read_text(target: &str) -> String {
     if cfg!(windows) {
         format!("IAudioEndpointVolume::GetMute · {target}")
+    } else if cfg!(target_os = "macos") {
+        format!("kAudioDevicePropertyMute? · {target}")
     } else {
         format!("wpctl get-volume {target}")
     }

@@ -12,13 +12,15 @@ pub const ACTIONS: &[(&str, &str)] = &[
     ("hand", "Levantar a mão"),
     ("leave", "Sair da chamada"),
 ];
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
 const TAKEN: &[(&str, &str)] = &[
     ("Super+L", "Super+L é do GNOME (travar a tela)."),
     ("Ctrl+Alt+T", "Ctrl+Alt+T já abre o Terminal no GNOME."),
 ];
 #[cfg(windows)]
 const TAKEN: &[(&str, &str)] = &[("Super+L", "Win+L trava o Windows.")];
+#[cfg(target_os = "macos")]
+const TAKEN: &[(&str, &str)] = &[("Ctrl+Super+Q", "Ctrl+Cmd+Q trava o macOS."), ("Super+Space", "Cmd+Espaço abre o Spotlight.")];
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Debug)]
 pub struct Device {
@@ -88,9 +90,14 @@ impl Default for Settings {
 
 impl Settings {
     fn path() -> PathBuf {
-        let base = std::env::var_os(if cfg!(windows) { "APPDATA" } else { "XDG_CONFIG_HOME" })
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".config"));
+        let home = PathBuf::from(std::env::var_os("HOME").unwrap_or_default());
+        let base = if cfg!(target_os = "macos") {
+            home.join("Library/Application Support")
+        } else {
+            std::env::var_os(if cfg!(windows) { "APPDATA" } else { "XDG_CONFIG_HOME" })
+                .map(PathBuf::from)
+                .unwrap_or_else(|| home.join(".config"))
+        };
         base.join("muttei").join("settings.json")
     }
 
@@ -165,7 +172,7 @@ mod tests {
         assert!(s.validate_shortcut("camera", "Ctrl+Alt+Space").unwrap_err().contains("Segurar para falar"));
         assert!(s.validate_shortcut("ptt", "Ctrl+Alt+Space").is_ok());
         assert!(s.validate_shortcut("hand", "Ctrl+Shift+M").unwrap_err().contains("Mutar"));
-        assert!(s.validate_shortcut("hand", "Super+L").is_err());
+        assert!(s.validate_shortcut("hand", TAKEN[0].0).is_err());
         assert!(s.validate_shortcut("hand", "H").is_err());
         assert!(s.validate_shortcut("nope", "Ctrl+H").is_err());
         assert!(s.validate_shortcut("ptt", "Ctrl+Space").is_ok());

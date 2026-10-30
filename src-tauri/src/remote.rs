@@ -15,7 +15,7 @@ use tokio::sync::oneshot;
 
 pub const MEET_PORT: u16 = 47822;
 const LOCKOUT: Duration = Duration::from_secs(60);
-const HIDDEN: &[&str] = &["docker", "br-", "veth", "tun", "wg", "virbr", "vEthernet", "Loopback", "VirtualBox", "VMware"];
+const HIDDEN: &[&str] = &["docker", "br-", "veth", "tun", "wg", "virbr", "vEthernet", "Loopback", "VirtualBox", "VMware", "utun", "awdl", "llw", "anpi", "bridge", "gif", "stf", "ap1"];
 
 #[derive(Serialize, Clone, Debug, PartialEq)]
 pub struct Iface {

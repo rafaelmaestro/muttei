@@ -76,9 +76,11 @@ const OS = {
     src:'a fonte padrão do PipeWire', tray:'Se o ícone sumir, ele fica em Ajustes do GNOME &gt; Extensões &gt; AppIndicator.', rec:'para o X11 não engolir as teclas' },
   windows:{ lock:'Win+L ou bloqueio automático', auto:'HKCU\\…\\CurrentVersion\\Run', shot:'Aparece em capturas de tela.',
     src:'o microfone padrão do Windows', tray:'Se o ícone sumir, ele fica na seta ^ da bandeja, ao lado do relógio.', rec:'para o Windows não engolir as teclas' },
+  macos:{ lock:'Ctrl+Cmd+Q ou bloqueio automático', auto:'~/Library/LaunchAgents/Muttei.plist', shot:'Aparece em capturas de tela.',
+    src:'o microfone padrão do macOS', tray:'O ícone fica na barra de menus, no canto superior direito.', rec:'para o macOS não engolir as teclas' },
 };
 const T = () => OS[S.os] || OS.linux;
-const keyName = k => k==='Super' && S.os==='windows' ? 'Win' : k;
+const keyName = k => k!=='Super' ? k : S.os==='windows' ? 'Win' : S.os==='macos' ? 'Cmd' : k;
 const kbds = str => str.split('+').map(k=>`<kbd>${esc(keyName(k))}</kbd>`).join('<span class="muted">+</span>');
 const TABS = [['atalho','Atalho'],['regras','Regras'],['celular','Celular'],['meet','Meet'],['geral','Geral']];
 const scErr = a => ui.localErr[a] || S.sc_errs[a];
@@ -136,7 +138,9 @@ function paneRegras(){
 }
 function paneCelular(){
   const ifs = S.ifaces.map(i=>`<option value="${esc(i.name)}" ${i.name===S.iface?'selected':''} ${i.ip?'':'disabled'}>${esc(i.name)} · ${i.ip?esc(i.ip):'desconectada'}</option>`).join('');
-  const ufw = S.os==='windows'
+  const ufw = S.os==='macos'
+    ? `<span class="note">Na primeira vez, o macOS pergunta se o Muttei pode acessar a rede local: permita.</span>`
+    : S.os==='windows'
     ? `<span class="note">Na primeira vez, o Windows pergunta se o Muttei pode usar a rede: permita em redes privadas.</span>`
     : S.ufw
     ? `<span class="note wn">ufw ativo: libere a porta com <span class="mono">sudo ufw allow ${S.port}/tcp</span></span>`

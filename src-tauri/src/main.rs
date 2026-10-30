@@ -6,6 +6,8 @@ mod remote;
 mod rules;
 mod settings;
 mod shortcuts;
+#[cfg(target_os = "macos")]
+mod mac;
 #[cfg(windows)]
 mod win;
 
@@ -26,8 +28,11 @@ use tauri_plugin_autostart::ManagerExt as _;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use tokio::sync::{broadcast, oneshot};
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
 const TRAY_ON: &[u8] = include_bytes!("../icons/tray.png");
+// a black template glyph: the menu bar repaints it to match light or dark mode
+#[cfg(target_os = "macos")]
+const TRAY_ON: &[u8] = include_bytes!("../icons/tray-template.png");
 // the light Linux tray glyph disappears on Windows' light taskbar; the dark app tile reads on both
 #[cfg(windows)]
 const TRAY_ON: &[u8] = include_bytes!("../icons/128x128.png");
@@ -292,6 +297,8 @@ impl Core {
         let s = self.settings();
         if let Some(t) = self.tray.lock().unwrap().as_ref() {
             let _ = t.icon.set_icon(Image::from_bytes(if m { TRAY_MUTED } else { TRAY_ON }).ok());
+            #[cfg(target_os = "macos")]
+            let _ = t.icon.set_icon_as_template(!m);
             let _ = t.status.set_text(if m { "Microfone mudo" } else { "Microfone no ar" });
             let _ = t.toggle.set_text(format!("{}    {}", if m { "Desmutar" } else { "Mutar" }, s.shortcut()));
         }
@@ -673,8 +680,10 @@ fn overlay(app: &AppHandle, label: &str, w: f64, h: f64, page: &str) -> tauri::R
         .visible(true)
         .title(format!("Muttei {label}"))
         .min_inner_size(w, h)
-        .max_inner_size(w, h)
-        .build()?;
+        .max_inner_size(w, h);
+    #[cfg(target_os = "macos")]
+    let win = win.visible_on_all_workspaces(true);
+    let win = win.build()?;
     let _ = win.set_ignore_cursor_events(true);
     // GNOME flags an unfocused new window as "is ready" and shows a notification; clear it
     let _ = win.request_user_attention(None);
@@ -831,6 +840,9 @@ fn hide_settings(core: C) {
 }
 
 fn setup(app: &AppHandle) -> tauri::Result<()> {
+    // menu bar app: no Dock icon, Settings still opens as a normal window
+    #[cfg(target_os = "macos")]
+    app.set_activation_policy(tauri::ActivationPolicy::Accessory)?;
     let s = Settings::load();
     let first_run = !s.intro_seen;
     let (tx, _) = broadcast::channel(32);
@@ -892,6 +904,7 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
     let c = core.clone();
     let icon = TrayIconBuilder::with_id("muttei")
         .icon(Image::from_bytes(TRAY_ON)?)
+        .icon_as_template(cfg!(target_os = "macos"))
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(move |app, e| match e.id.as_ref() {

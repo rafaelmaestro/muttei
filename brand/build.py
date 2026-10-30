@@ -116,6 +116,7 @@ FILES = {
     "app-icon-maskable.svg": app_icon_maskable(),
     "tray.svg": tray(False),
     "tray-muted.svg": tray(True),
+    "tray-template.svg": svg(256, 256, symbol(SMALL, "#000000", knob_fill=None), "Muttei: no ar"),
 }
 
 UI_COPIES = {"logo-mark.svg": "symbol-small-dark.svg", "logo-lockup.svg": "horizontal-dark.svg"}

@@ -11,6 +11,7 @@
   <img alt="Linux" src="https://img.shields.io/badge/Linux-282a36?logo=linux&logoColor=f8f8f2">
   <img alt="GNOME" src="https://img.shields.io/badge/GNOME-282a36?logo=gnome&logoColor=f8f8f2">
   <img alt="Windows (beta)" src="https://img.shields.io/badge/Windows-beta-282a36?logo=windows&logoColor=f8f8f2">
+  <img alt="macOS (beta)" src="https://img.shields.io/badge/macOS-beta-282a36?logo=apple&logoColor=f8f8f2">
   <img alt="X11 e Wayland" src="https://img.shields.io/badge/X11%20%C2%B7%20Wayland-282a36">
   <img alt="PipeWire" src="https://img.shields.io/badge/PipeWire-282a36">
   <img alt="Tauri 2" src="https://img.shields.io/badge/Tauri%202-282a36?logo=tauri&logoColor=f8f8f2">
@@ -35,8 +36,8 @@ O microfone é do sistema, não do app da chamada. Então o botão também dever
 
 ## Como resolve
 
-1. **Instale** o `.deb` no Linux ou o `.exe` no Windows. O Muttei fica na tray e abre com o sistema.
-2. **Aperte `Ctrl+Shift+M`** em qualquer janela. Ele muta o microfone no sistema (PipeWire no Linux, Core Audio no Windows), ou seja, o de todos os apps ao mesmo tempo.
+1. **Instale** o `.deb` no Linux, o `.exe` no Windows ou o `.dmg` no macOS. O Muttei fica na tray (no Mac, na barra de menus) e abre com o sistema.
+2. **Aperte `Ctrl+Shift+M`** em qualquer janela. Ele muta o microfone no sistema (PipeWire no Linux, Core Audio no Windows e no macOS), ou seja, o de todos os apps ao mesmo tempo.
 3. **Olhe para a tela.** Uma pílula confirma "Mudo" ou "No ar", e um indicador fica no canto enquanto o microfone estiver fechado.
 
 ## O que ele faz
@@ -64,7 +65,7 @@ Com a extensão em [`extension/`](extension/), o ícone de microfone do Meet aco
 
 ## Privacidade
 
-- **Não grava nem escuta.** O Muttei só liga e desliga o mute do microfone, com `wpctl` no Linux e com o Core Audio no Windows. Ele nunca abre o áudio.
+- **Não grava nem escuta.** O Muttei só liga e desliga o mute do microfone, com `wpctl` no Linux e com o Core Audio no Windows e no macOS. Ele nunca abre o áudio.
 - **Tudo fica no seu PC.** Não há conta, servidor nem telemetria.
 - **Celular:** só funciona na rede local, depois do pareamento. Cada mensagem é conferida com o token do aparelho.
 - **Extensão do Meet:** fala só com `127.0.0.1` e só é aceita se vier de uma extensão do navegador.
@@ -86,7 +87,7 @@ Sim. O mute é aplicado no sistema, então vale para todos os apps que usam a en
 <details>
 <summary><b>O som de confirmação vaza para a chamada?</b></summary>
 
-O som toca na saída, com `pw-play` no Linux e com os sons do sistema no Windows, e não entra no microfone. Se você usar alto-falante com o microfone aberto, ele pode captar o som como captaria qualquer outro barulho. Dá para desligar o som em Ajustes > Geral.
+O som toca na saída, com `pw-play` no Linux e com os sons do sistema no Windows e no macOS, e não entra no microfone. Se você usar alto-falante com o microfone aberto, ele pode captar o som como captaria qualquer outro barulho. Dá para desligar o som em Ajustes > Geral.
 </details>
 
 <details>
@@ -104,14 +105,14 @@ Para forçar um backend, use `MUTTEI_SHORTCUTS=x11|portal|gnome`.
 </details>
 
 <details>
-<summary><b>Funciona no Windows?</b></summary>
+<summary><b>Funciona no Windows e no macOS?</b></summary>
 
-Em beta. O Windows 10 e 11 recebem um instalador `.exe` em cada versão. Tudo funciona igual, com estas diferenças:
-- **Mute:** pelo Core Audio.
-- **Travar a tela:** detectado pelo Win+L ou pelo bloqueio automático.
-- **Atalhos:** são nativos, então segurar para falar e para tossir funcionam.
+Em beta. Cada versão traz um instalador `.exe` para o Windows 10 e 11 e um `.dmg` universal (Apple Silicon e Intel) para o macOS 12 ou mais novo. Tudo funciona igual, com estas diferenças:
+- **Mute:** pelo Core Audio. No Mac, muitos microfones, inclusive o embutido, não têm controle de mudo. Nesses, o Muttei zera o volume de entrada e devolve o volume anterior ao desmutar.
+- **Travar a tela:** detectado pelo Win+L, pelo Ctrl+Cmd+Q ou pelo bloqueio automático.
+- **Atalhos:** são nativos, então segurar para falar e para tossir funcionam. No Mac, `Super` é a tecla Cmd.
 
-O código do Windows é compilado e testado no CI, mas ainda não foi testado numa máquina com Windows. Se algo não funcionar, abra uma issue.
+O código dos dois sistemas é compilado e testado no CI, mas ainda não foi testado numa máquina com Windows nem num Mac. Se algo não funcionar, abra uma issue.
 </details>
 
 <details>
@@ -131,6 +132,12 @@ sudo apt install ./Muttei_*_amd64.deb
 O `.deb` já puxa as dependências de execução: `wireplumber`, `pipewire-bin`, `libglib2.0-bin` e `sound-theme-freedesktop`.
 
 **Windows 10 e 11 (beta):** baixe o `Muttei_*_x64-setup.exe` da [última versão](../../releases/latest) e rode. O WebView2 já vem no Windows 11; no 10, o instalador baixa se faltar.
+
+**macOS 12 ou mais novo (beta):** baixe o `Muttei_*_universal.dmg` da [última versão](../../releases/latest) e arraste o Muttei para Aplicativos. O app não é assinado, então o macOS bloqueia a primeira abertura. Para liberar, escolha uma das opções:
+- em Aplicativos, clique no Muttei com o botão direito, escolha **Abrir** e confirme;
+- ou rode no Terminal `xattr -cr /Applications/Muttei.app`.
+
+No macOS 15, se a opção Abrir não aparecer, vá em Ajustes do Sistema > Privacidade e Segurança e clique em **Abrir Mesmo Assim**.
 
 **Para compilar:**
 ```sh
@@ -162,4 +169,4 @@ Com o Muttei aberto, a extensão se conecta sozinha. A primeira é aprovada auto
 
 Para publicar no Edge Add-ons ([partner.microsoft.com](https://partner.microsoft.com/dashboard/microsoftedge/overview)), use o mesmo zip e os mesmos textos. Lá a conta é gratuita.
 
-**Para publicar uma versão:** suba a versão em `src-tauri/tauri.conf.json` e envie uma tag `v*`, por exemplo `git tag v0.3.0 && git push --tags`. O workflow `Release` roda os testes no Linux e no Windows, gera o `.deb` e o `.exe` e cria a release com os dois.
+**Para publicar uma versão:** suba a versão em `src-tauri/tauri.conf.json` e envie uma tag `v*`, por exemplo `git tag v0.3.0 && git push --tags`. O workflow `Release` roda os testes no Linux, no Windows e no macOS, gera o `.deb`, o `.exe`, o `.dmg` e o zip da extensão e cria a release com eles.
