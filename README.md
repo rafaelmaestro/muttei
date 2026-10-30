@@ -6,7 +6,7 @@
 Seu microfone em um atalho. Muta o microfone de qualquer app no Linux (GNOME, X11 ou Wayland, com PipeWire) e mostra o estado na tela.
 
 - **Atalho global:** Ctrl+Shift+M muta e desmuta. Também dá para configurar segurar para falar, segurar para tossir e atalhos de câmera, mão e sair do Meet.
-- **Indicadores:** pílula "No ar"/"Mudo" em todas as telas, ícone na tray e ponto vermelho fixo enquanto estiver mudo.
+- **Indicadores:** pílula "No ar"/"Mudo" em todas as telas, ícone na tray e um indicador fixo no canto enquanto estiver mudo (chave, selo, etiqueta ou halo).
 - **Regras:** muta ao travar a tela e quando um app da lista abre.
 - **Celular:** controle pela Wi-Fi, sem instalar nada. O celular abre uma página, pareia por QR e código de 4 dígitos.
 - **Google Meet:** a extensão em `extension/` faz o ícone de mic acompanhar o estado e executa câmera, mão e sair.
