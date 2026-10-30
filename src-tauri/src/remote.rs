@@ -15,7 +15,7 @@ use tokio::sync::oneshot;
 
 pub const MEET_PORT: u16 = 47822;
 const LOCKOUT: Duration = Duration::from_secs(60);
-const HIDDEN: &[&str] = &["docker", "br-", "veth", "tun", "wg", "virbr"];
+const HIDDEN: &[&str] = &["docker", "br-", "veth", "tun", "wg", "virbr", "vEthernet", "Loopback", "VirtualBox", "VMware"];
 
 #[derive(Serialize, Clone, Debug, PartialEq)]
 pub struct Iface {
@@ -44,11 +44,13 @@ pub fn hidden_summary(names: &[String]) -> String {
 }
 
 pub fn interfaces() -> (Vec<Iface>, String) {
+    let addrs = if_addrs::get_if_addrs().unwrap_or_default();
+    // /sys also lists interfaces that are down; Windows only has what if_addrs reports
     let mut names: Vec<String> = std::fs::read_dir("/sys/class/net")
         .map(|d| d.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect())
-        .unwrap_or_default();
+        .unwrap_or_else(|_| addrs.iter().filter(|a| !a.is_loopback()).map(|a| a.name.clone()).collect());
     names.sort();
-    let addrs = if_addrs::get_if_addrs().unwrap_or_default();
+    names.dedup();
     let list = names
         .iter()
         .filter(|n| !is_hidden(n))

@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  deb:
+  linux:
     # 22.04 so the .deb also installs on older glibc; webkit2gtk-4.1 exists there
     runs-on: ubuntu-22.04
     steps:
@@ -26,9 +26,35 @@ jobs:
         run: echo "deb=src-tauri/$(./scripts/package-deb.sh | tail -1)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
-          name: deb
+          name: linux
           path: ${{ steps.build.outputs.deb }}
-      - if: startsWith(github.ref, 'refs/tags/')
-        run: gh release create "$GITHUB_REF_NAME" "${{ steps.build.outputs.deb }}" --title "Muttei $GITHUB_REF_NAME" --generate-notes
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: cargo install tauri-cli --version '^2' --locked
+      - run: cargo test
+        working-directory: src-tauri
+      - run: cargo tauri build --bundles nsis
+        working-directory: src-tauri
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: src-tauri/target/release/bundle/nsis/*.exe
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [linux, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - run: gh release create "$GITHUB_REF_NAME" dist/*/* --repo "$GITHUB_REPOSITORY" --title "Muttei $GITHUB_REF_NAME" --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}

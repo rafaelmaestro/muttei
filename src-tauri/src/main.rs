@@ -1,9 +1,13 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod audio;
 mod ptt;
 mod remote;
 mod rules;
 mod settings;
 mod shortcuts;
+#[cfg(windows)]
+mod win;
 
 use remote::{Iface, PairResult, Pairing};
 use serde::Serialize;
@@ -22,7 +26,11 @@ use tauri_plugin_autostart::ManagerExt as _;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use tokio::sync::{broadcast, oneshot};
 
+#[cfg(not(windows))]
 const TRAY_ON: &[u8] = include_bytes!("../icons/tray.png");
+// the light Linux tray glyph disappears on Windows' light taskbar; the dark app tile reads on both
+#[cfg(windows)]
+const TRAY_ON: &[u8] = include_bytes!("../icons/128x128.png");
 const TRAY_MUTED: &[u8] = include_bytes!("../icons/tray-muted.png");
 const PILL_W: f64 = 320.0;
 const PILL_H: f64 = 76.0;
@@ -98,6 +106,7 @@ struct Snapshot {
     shortcut: String,
     shortcuts: BTreeMap<String, String>,
     shortcut_backend: &'static str,
+    os: &'static str,
     sound: bool,
     pill: bool,
     dot: bool,
@@ -135,6 +144,13 @@ struct Snapshot {
     intro_seen: bool,
 }
 
+#[cfg(windows)]
+fn now_label() -> String {
+    let t = unsafe { windows::Win32::System::SystemInformation::GetLocalTime() };
+    format!("pareado em {:02}/{:02}", t.wDay, t.wMonth)
+}
+
+#[cfg(not(windows))]
 fn now_label() -> String {
     std::process::Command::new("date")
         .arg("+%d/%m")
@@ -165,7 +181,7 @@ impl Core {
                 audio::get_muted(&target).unwrap_or(false)
             };
             self.muted.store(m, Ordering::SeqCst);
-            *self.last.lock().unwrap() = format!("wpctl get-volume {target}");
+            *self.last.lock().unwrap() = audio::read_text(&target);
             self.update_indicators();
         }
         if retarget || relist {
@@ -199,6 +215,7 @@ impl Core {
             shortcut: s.shortcut(),
             shortcuts: s.shortcuts.clone(),
             shortcut_backend: self.backend.name(),
+            os: std::env::consts::OS,
             sound: s.sound,
             pill: s.pill,
             dot: s.dot,
@@ -800,7 +817,7 @@ fn test_sound() {
 }
 #[tauri::command]
 fn lock_now() {
-    let _ = std::process::Command::new("loginctl").arg("lock-session").spawn();
+    rules::lock_now();
 }
 #[tauri::command]
 fn dot_ready(core: C, window: WebviewWindow) {
@@ -833,7 +850,7 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
         live: Mutex::new(HashMap::new()),
         pair_until: Mutex::new(None),
         sc_errs: Mutex::new(BTreeMap::new()),
-        last: Mutex::new(format!("wpctl get-volume {target}")),
+        last: Mutex::new(audio::read_text(&target)),
         mics: Mutex::new(mics),
         target: Mutex::new(target),
         running: Mutex::new(HashSet::new()),

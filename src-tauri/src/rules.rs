@@ -1,9 +1,15 @@
 use std::collections::HashSet;
+#[cfg(target_os = "linux")]
 use std::io::{BufRead, BufReader};
 use std::path::Path;
+#[cfg(target_os = "linux")]
 use std::process::{Command, Stdio};
+#[cfg(target_os = "linux")]
 use std::time::Duration;
+#[cfg(windows)]
+pub use crate::win::{lock_now, running, watch_lock};
 
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub fn lock_signal(line: &str) -> Option<bool> {
     if !line.contains("ActiveChanged") {
         return None;
@@ -11,6 +17,7 @@ pub fn lock_signal(line: &str) -> Option<bool> {
     Some(line.contains("(true,)"))
 }
 
+#[cfg(target_os = "linux")]
 pub fn watch_lock(on_change: impl Fn(bool) + Send + 'static) {
     std::thread::spawn(move || loop {
         let child = Command::new("gdbus")
@@ -32,11 +39,18 @@ pub fn watch_lock(on_change: impl Fn(bool) + Send + 'static) {
     });
 }
 
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 fn base(s: &str) -> Option<String> {
     let b = Path::new(s.split('\0').next()?).file_name()?.to_str()?;
     (!b.is_empty()).then(|| b.to_lowercase())
 }
 
+#[cfg(target_os = "linux")]
+pub fn lock_now() {
+    let _ = Command::new("loginctl").arg("lock-session").spawn();
+}
+
+#[cfg(target_os = "linux")]
 pub fn running() -> HashSet<String> {
     let mut names = HashSet::new();
     let Ok(dir) = std::fs::read_dir("/proc") else { return names };

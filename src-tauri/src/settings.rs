@@ -12,10 +12,13 @@ pub const ACTIONS: &[(&str, &str)] = &[
     ("hand", "Levantar a mão"),
     ("leave", "Sair da chamada"),
 ];
+#[cfg(not(windows))]
 const TAKEN: &[(&str, &str)] = &[
     ("Super+L", "Super+L é do GNOME (travar a tela)."),
     ("Ctrl+Alt+T", "Ctrl+Alt+T já abre o Terminal no GNOME."),
 ];
+#[cfg(windows)]
+const TAKEN: &[(&str, &str)] = &[("Super+L", "Win+L trava o Windows.")];
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Debug)]
 pub struct Device {
@@ -85,7 +88,7 @@ impl Default for Settings {
 
 impl Settings {
     fn path() -> PathBuf {
-        let base = std::env::var_os("XDG_CONFIG_HOME")
+        let base = std::env::var_os(if cfg!(windows) { "APPDATA" } else { "XDG_CONFIG_HOME" })
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".config"));
         base.join("muttei").join("settings.json")

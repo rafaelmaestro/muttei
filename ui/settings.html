@@ -71,7 +71,15 @@ document.addEventListener('keydown', e=>{
 });
 
 const sw = (id,on,label) => `<button class="sw" id="${id}" role="switch" aria-checked="${on}" aria-label="${esc(label)}"></button>`;
-const kbds = str => str.split('+').map(k=>`<kbd>${esc(k)}</kbd>`).join('<span class="muted">+</span>');
+const OS = {
+  linux:{ lock:'org.gnome.ScreenSaver · ActiveChanged', auto:'~/.config/autostart/Muttei.desktop', shot:'Aparece em capturas de tela no X11.',
+    src:'a fonte padrão do PipeWire', tray:'Se o ícone sumir, ele fica em Ajustes do GNOME &gt; Extensões &gt; AppIndicator.', rec:'para o X11 não engolir as teclas' },
+  windows:{ lock:'Win+L ou bloqueio automático', auto:'HKCU\\…\\CurrentVersion\\Run', shot:'Aparece em capturas de tela.',
+    src:'o microfone padrão do Windows', tray:'Se o ícone sumir, ele fica na seta ^ da bandeja, ao lado do relógio.', rec:'para o Windows não engolir as teclas' },
+};
+const T = () => OS[S.os] || OS.linux;
+const keyName = k => k==='Super' && S.os==='windows' ? 'Win' : k;
+const kbds = str => str.split('+').map(k=>`<kbd>${esc(keyName(k))}</kbd>`).join('<span class="muted">+</span>');
 const TABS = [['atalho','Atalho'],['regras','Regras'],['celular','Celular'],['meet','Meet'],['geral','Geral']];
 const scErr = a => ui.localErr[a] || S.sc_errs[a];
 const anyErr = () => ACTIONS.some(([a])=>scErr(a));
@@ -98,7 +106,7 @@ function scRow([a,l,sub]){
       ${a==='toggle_mute' ? (v!=='Ctrl+Shift+M'?`<button class="btn sm" id="scReset">Padrão</button>`:'') : (v&&!rec?`<button class="btn sm danger" data-clear="${a}">Remover</button>`:'')}
     </div>
     ${hold?`<div class="r"><span class="note okn">Segurando agora · solte para voltar a ${S.holding.prior?'mudo':'no ar'}</span></div>`:''}
-    ${rec?`<div class="r"><span class="note">Enquanto grava, os atalhos ficam desregistrados para o X11 não engolir as teclas. Esc cancela.</span></div>`:''}
+    ${rec?`<div class="r"><span class="note">Enquanto grava, os atalhos ficam desregistrados ${T().rec}. Esc cancela.</span></div>`:''}
     ${scErr(a)?`<div class="r"><span class="note err">${esc(scErr(a))}</span></div>`:''}`;
 }
 function paneAtalho(){
@@ -113,7 +121,7 @@ function paneAtalho(){
 function paneRegras(){
   return `<h2>Regras</h2><p class="lead">Regras só mutam. Nunca abrem o microfone sozinhas.</p>
   <div class="grp">
-    <div class="r"><div class="lb">Mutar ao travar a tela<span class="mono">org.gnome.ScreenSaver · ActiveChanged</span></div>
+    <div class="r"><div class="lb">Mutar ao travar a tela<span class="mono">${T().lock}</span></div>
       <button class="btn sm" id="simLock">Travar agora</button>${sw('swLock',S.lock_rule,'Mutar ao travar a tela')}</div>
     <div class="r"><div class="lb">Mutar ao entrar numa chamada do Meet<span>${S.browsers.length?'Cada chamada nova começa no mudo':'Precisa da extensão do Muttei no navegador (Ajustes &gt; Meet)'}</span></div>
       ${sw('swMeetRule',S.meet_rule,'Mutar ao entrar numa chamada do Meet')}</div>
@@ -128,7 +136,9 @@ function paneRegras(){
 }
 function paneCelular(){
   const ifs = S.ifaces.map(i=>`<option value="${esc(i.name)}" ${i.name===S.iface?'selected':''} ${i.ip?'':'disabled'}>${esc(i.name)} · ${i.ip?esc(i.ip):'desconectada'}</option>`).join('');
-  const ufw = S.ufw
+  const ufw = S.os==='windows'
+    ? `<span class="note">Na primeira vez, o Windows pergunta se o Muttei pode usar a rede: permita em redes privadas.</span>`
+    : S.ufw
     ? `<span class="note wn">ufw ativo: libere a porta com <span class="mono">sudo ufw allow ${S.port}/tcp</span></span>`
     : `<span class="note okn">ufw inativo: nenhuma regra de firewall necessária.</span>`;
   return `<h2>Celular</h2><p class="lead">O celular vira um controle remoto pela Wi-Fi. Sem app e sem servidor externo: o navegador do celular fala direto com este PC.</p>
@@ -176,13 +186,13 @@ function paneGeral(){
       <select class="in" id="micSel"><option value="">Padrão do sistema${def?` · ${esc(def.desc)}`:''}</option>${opts.map(m=>`<option value="${esc(m.name)}">${esc(m.desc)}${m.gone?' (desconectado)':''}</option>`).join('')}</select></div>
     <div class="r"><div class="lb">Som ao mutar e desmutar<span>Toca só na saída de áudio, nunca entra no microfone</span></div><button class="btn sm" id="testSnd">Testar</button>${sw('swSound',S.sound,'Som')}</div>
     <div class="r"><div class="lb">Pílula no topo da tela<span>"No ar" ou "Mudo" por 1,5 s a cada troca</span></div>${sw('swPill',S.pill,'Pílula')}</div>
-    <div class="r"><div class="lb">Indicador fixo<span>Fica no canto da tela enquanto estiver mudo. Aparece em capturas de tela no X11.</span></div>
+    <div class="r"><div class="lb">Indicador fixo<span>Fica no canto da tela enquanto estiver mudo. ${T().shot}</span></div>
       <select class="in" id="corner" ${S.dot?'':'disabled'}><option value="tr">canto superior direito</option><option value="tl">canto superior esquerdo</option><option value="br">canto inferior direito</option><option value="bl">canto inferior esquerdo</option></select>${sw('swDot',S.dot,'Indicador fixo')}</div>
     <div class="r"><div class="lb">Estilo do indicador<span>${S.muted?'Veja no canto da tela':'Mute para ver no canto da tela'}</span></div>
       <select class="in" id="dotStyle" ${S.dot?'':'disabled'}><option value="sw">Chave</option><option value="seal">Selo</option><option value="tag">Etiqueta</option><option value="halo">Halo</option></select>
       <select class="in" id="dotAnim" ${S.dot?'':'disabled'}><option value="breathe">respiração lenta</option><option value="slide">entrada + parado</option><option value="both">entrada + respiração</option><option value="none">sem movimento</option></select>
       ${S.muted?'':'<button class="btn sm" id="muteSee">Mutar para ver</button>'}</div>
-    <div class="r"><div class="lb">Iniciar com o sistema<span class="mono">~/.config/autostart/Muttei.desktop</span></div>${sw('swAuto',S.autostart,'Iniciar com o sistema')}</div>
+    <div class="r"><div class="lb">Iniciar com o sistema<span class="mono">${T().auto}</span></div>${sw('swAuto',S.autostart,'Iniciar com o sistema')}</div>
     <div class="r"><div class="lb">Introdução<span>A tela que aparece na primeira execução</span></div><button class="btn sm" id="introBtn">Mostrar</button></div>
   </div>`;
 }
@@ -239,8 +249,8 @@ function intro(){
     <div class="steps">
       <div><b>1</b><span>Aperte <kbd>${esc(S.shortcut)}</kbd> para mutar. Aperte de novo para voltar ao ar.</span></div>
       <div><b>2</b><span>A pílula no topo, o ícone vermelho na tray e o ponto no canto mostram quando você está mudo.</span></div>
-      <div><b>3</b><span>Funciona no Meet, Zoom, Discord, Slack e qualquer app que use a fonte padrão do PipeWire.</span></div>
-      <div><b>4</b><span>Se o ícone sumir, ele fica em Ajustes do GNOME &gt; Extensões &gt; AppIndicator.</span></div>
+      <div><b>3</b><span>Funciona no Meet, Zoom, Discord, Slack e qualquer app que use ${T().src}.</span></div>
+      <div><b>4</b><span>${T().tray}</span></div>
     </div>
     <div class="acts"><button class="btn pri" data-close>Começar</button></div>`, ()=>{ if(!S.intro_seen) patch({intro_seen:true}); });
 }

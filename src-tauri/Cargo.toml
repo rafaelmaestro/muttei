@@ -18,4 +18,22 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync",
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 if-addrs = "0.13"
 rand = "0.9"
+
+[target.'cfg(target_os = "linux")'.dependencies]
 zbus = "5"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_Media_Audio",
+  "Win32_Media_Audio_Endpoints",
+  "Win32_Devices_FunctionDiscovery",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_Variant",
+  "Win32_UI_Shell_PropertiesSystem",
+  "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_StationsAndDesktops",
+  "Win32_System_Shutdown",
+  "Win32_System_SystemInformation",
+] }
