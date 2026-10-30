@@ -1,5 +1,5 @@
 {
   "identifier": "default",
-  "windows": ["settings", "pill-*", "dot"],
+  "windows": ["settings", "pill-*", "dot-*"],
   "permissions": ["core:default", "core:window:allow-start-dragging"]
 }

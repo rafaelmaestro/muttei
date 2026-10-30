@@ -34,7 +34,7 @@ https://claude.ai/artifact/CaqrnFcSV88Hp2UaVBwaWB (v1, 30/10)
 - [x] Desregistrar o atalho durante a captura; erro de registro aparece na UI · Ctrl+Space recusado com aviso do IBus
 - [x] Pílula "No ar" / "Mudo" (~1,5 s, sem foco) · uma por monitor, todas ao mesmo tempo (recriadas se o número de monitores mudar); janela fica com 200px (mínimo do WebKitGTK), transparente; click-through **não verificado**
 - [x] Tray: ícone vermelho quando mudo; menu Mutar/Ajustes/Sair · ícone sólido; mudo = disco vermelho (corte some a 20px); menu precisa de teste manual
-- [x] Ponto fixo no canto configurável, com opção de desligar · posicionado depois do load (outer_size só vale com a janela realizada)
+- [x] Ponto fixo no canto configurável, com opção de desligar · um por monitor; posicionado depois do load (outer_size só vale com a janela realizada)
 - [x] Fontes locais em `ui/fonts/` (OFL), servidas também para o celular; sem dependência de internet no login
 - [x] Um lock só em volta de wpctl + estado, para o polling não sobrescrever um toggle
 - [x] Som via `pw-play`, com opção de desligar · device-removed/added.oga

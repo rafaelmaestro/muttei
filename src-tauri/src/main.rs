@@ -187,6 +187,7 @@ impl Core {
     }
 
     fn effects(&self, m: bool, src: &str, sound: bool) {
+        ensure_dots(&self.app, &self.settings().dot_corner);
         if sound && self.s.lock().unwrap().sound {
             audio::play(m);
         }
@@ -402,7 +403,7 @@ impl Core {
             let _ = if new.autostart { a.enable() } else { a.disable() };
         }
         if old.dot_corner != new.dot_corner {
-            place_dot(&self.app, &new.dot_corner);
+            ensure_dots(&self.app, &new.dot_corner);
         }
         self.update_indicators();
         self.emit_state();
@@ -455,9 +456,10 @@ fn place_pills(app: &AppHandle) -> Vec<String> {
     labels
 }
 
-fn place_dot(app: &AppHandle, corner: &str) {
-    let Some(w) = app.get_webview_window("dot") else { return };
-    let Some(m) = app.primary_monitor().ok().flatten() else { return };
+fn place_dot(app: &AppHandle, label: &str, corner: &str) {
+    let Some(w) = app.get_webview_window(label) else { return };
+    let i: usize = label.trim_start_matches("dot-").parse().unwrap_or(0);
+    let Some(m) = app.available_monitors().ok().and_then(|ms| ms.into_iter().nth(i)) else { return };
     // WebKitGTK enforces a ~200px minimum, so anchor the real window size and let CSS pin the dot to the corner
     let Ok(size) = w.outer_size() else { return };
     let (mx, my) = (m.position().x as f64, m.position().y as f64);
@@ -471,6 +473,23 @@ fn place_dot(app: &AppHandle, corner: &str) {
         _ => (mx + sw - ww, top),
     };
     let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
+}
+
+fn ensure_dots(app: &AppHandle, corner: &str) {
+    let n = app.available_monitors().map(|m| m.len()).unwrap_or(1);
+    for i in 0..n {
+        let label = format!("dot-{i}");
+        if app.get_webview_window(&label).is_some() {
+            place_dot(app, &label, corner);
+        } else {
+            let _ = overlay(app, &label, DOT, DOT, "dot.html");
+        }
+    }
+    for (label, w) in app.webview_windows() {
+        if label.strip_prefix("dot-").and_then(|i| i.parse::<usize>().ok()).is_some_and(|i| i >= n) {
+            let _ = w.close();
+        }
+    }
 }
 
 fn show_settings(app: &AppHandle) {
@@ -539,8 +558,8 @@ fn lock_now() {
     let _ = std::process::Command::new("loginctl").arg("lock-session").spawn();
 }
 #[tauri::command]
-fn dot_ready(core: C) {
-    place_dot(&core.app, &core.settings().dot_corner);
+fn dot_ready(core: C, window: WebviewWindow) {
+    place_dot(&core.app, window.label(), &core.settings().dot_corner);
 }
 #[tauri::command]
 fn hide_settings(core: C) {
@@ -582,7 +601,7 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
         .visible(first_run)
         .build()?;
     place_pills(app);
-    overlay(app, "dot", DOT, DOT, "dot.html")?;
+    ensure_dots(app, &s.dot_corner);
 
     let status = MenuItem::with_id(app, "status", "Microfone no ar", false, None::<&str>)?;
     let toggle = MenuItem::with_id(app, "toggle", "Mutar", true, None::<&str>)?;
