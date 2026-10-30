@@ -3,15 +3,35 @@
   "productName": "Muttei",
   "version": "0.1.0",
   "identifier": "app.muttei",
-  "build": { "frontendDist": "../ui" },
+  "build": {
+    "frontendDist": "../ui"
+  },
   "app": {
     "withGlobalTauri": true,
     "windows": [],
-    "security": { "csp": null }
+    "security": {
+      "csp": null
+    }
   },
   "bundle": {
     "active": true,
-    "targets": ["deb"],
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.png"]
+    "targets": [
+      "deb"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/icon.png"
+    ],
+    "linux": {
+      "deb": {
+        "depends": [
+          "wireplumber",
+          "pipewire-bin",
+          "libglib2.0-bin",
+          "sound-theme-freedesktop"
+        ]
+      }
+    }
   }
 }
