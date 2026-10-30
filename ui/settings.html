@@ -23,27 +23,48 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
 let S = null;
-const ui = { tab:'atalho', recording:false, localErr:'' };
+const ui = { tab:'atalho', recording:false, localErr:{} };
 const patch = p => invoke('update', { patch:p }).catch(e=>toast(String(e)));
 
+const ACTIONS = [
+  ['toggle_mute','Mutar e desmutar','Também pelo menu da tray e pelo celular'],
+  ['ptt','Segurar para falar','Abre o microfone só enquanto a tecla estiver pressionada'],
+  ['ptc','Segurar para tossir','Fecha o microfone só enquanto a tecla estiver pressionada'],
+  ['camera','Câmera on/off','Clica no botão de câmera do Meet'],
+  ['hand','Levantar a mão','Levanta ou abaixa a mão no Meet'],
+  ['leave','Sair da chamada','Clica em sair no Meet'],
+];
+const NAMED = {Space:'Space', Comma:'Comma', Period:'Period', Slash:'Slash', Semicolon:'Semicolon', Quote:'Quote', BracketLeft:'BracketLeft', BracketRight:'BracketRight',
+  Minus:'Minus', Equal:'Equal', Backquote:'Backquote', Backslash:'Backslash', ArrowUp:'Up', ArrowDown:'Down', ArrowLeft:'Left', ArrowRight:'Right',
+  Home:'Home', End:'End', PageUp:'PageUp', PageDown:'PageDown', Insert:'Insert', Delete:'Delete', Enter:'Enter', Pause:'Pause'};
+const isMod = code => /^(Control|Alt|Shift|Meta|OS)/.test(code);
+const modsOf = e => [e.ctrlKey&&'Ctrl', e.altKey&&'Alt', e.shiftKey&&'Shift', e.metaKey&&'Super'].filter(Boolean);
 function comboOf(e){
   const k = e.code;
-  const key = k.startsWith('Key')?k.slice(3): k.startsWith('Digit')?k.slice(5): k==='Space'?'Space': /^F\d+$/.test(k)?k: null;
+  const key = k.startsWith('Key')?k.slice(3): k.startsWith('Digit')?k.slice(5): k.startsWith('Numpad')&&/\d$/.test(k)?'Num'+k.slice(-1): NAMED[k] || (/^F\d+$/.test(k)?k: null);
   if(!key) return null;
-  const mods = [e.ctrlKey&&'Ctrl', e.altKey&&'Alt', e.shiftKey&&'Shift', e.metaKey&&'Super'].filter(Boolean);
+  const mods = modsOf(e);
   return {mods, key, str:[...mods,key].join('+')};
 }
-function startRec(){ ui.recording=true; ui.localErr=''; invoke('rec_start'); render(); }
+function startRec(a){ ui.recording=a; delete ui.localErr[a]; invoke('rec_start'); render(); }
 function stopRec(){ ui.recording=false; invoke('rec_cancel'); render(); }
+function showLive(e){
+  const el = document.getElementById('recCombo'); if(!el) return;
+  const m = modsOf(e);
+  el.innerHTML = m.length ? kbds(m.join('+')) + '<span class="muted">+ …</span>' : 'Pressione as teclas…';
+}
+document.addEventListener('keyup', e=>{ if(ui.recording) showLive(e); });
 document.addEventListener('keydown', e=>{
   if(ui.recording){
+    const a = ui.recording;
     if(e.key==='Escape'){ stopRec(); return; }
-    const c = comboOf(e);
-    if(!c) return;
     e.preventDefault();
-    if(!c.mods.length){ ui.localErr='Use pelo menos um modificador (Ctrl, Alt, Shift ou Super).'; render(); return; }
-    ui.recording=false; ui.localErr='';
-    invoke('set_shortcut', { combo:c.str }).catch(()=>{});
+    if(isMod(e.code)){ showLive(e); return; }
+    const c = comboOf(e);
+    if(!c){ ui.localErr[a]=`A tecla "${e.key}" não pode ser usada. Use letras, números, F1–F12, setas ou espaço junto com um modificador.`; render(); return; }
+    if(!c.mods.length){ ui.localErr[a]='Use pelo menos um modificador (Ctrl, Alt, Shift ou Super).'; render(); return; }
+    ui.recording=false; delete ui.localErr[a];
+    invoke('set_shortcut', { action:a, combo:c.str }).catch(()=>{});
     render(); return;
   }
   if(e.key==='Escape') $('#overlay').innerHTML='';
@@ -52,34 +73,38 @@ document.addEventListener('keydown', e=>{
 const sw = (id,on,label) => `<button class="sw" id="${id}" role="switch" aria-checked="${on}" aria-label="${esc(label)}"></button>`;
 const kbds = str => str.split('+').map(k=>`<kbd>${esc(k)}</kbd>`).join('<span class="muted">+</span>');
 const TABS = [['atalho','Atalho'],['regras','Regras'],['celular','Celular'],['meet','Meet'],['geral','Geral']];
-const scErr = () => ui.localErr || S.sc_err;
+const scErr = a => ui.localErr[a] || S.sc_errs[a];
+const anyErr = () => ACTIONS.some(([a])=>scErr(a));
 
 function renderNav(){
   $('#snav').innerHTML = TABS.map(([k,l])=>{
     let bd='';
     if(k==='celular') bd = S.phone_on?`<span class="bd">on</span>`:'';
     if(k==='meet') bd = `<span class="bd">${S.browsers.length}</span>`;
-    if(k==='atalho' && scErr()) bd = `<span class="bd w">!</span>`;
+    if(k==='atalho' && anyErr()) bd = `<span class="bd w">!</span>`;
     return `<button role="tab" data-tab="${k}" aria-selected="${ui.tab===k}">${l}${bd}</button>`;
   }).join('');
   $('#snav').querySelectorAll('button').forEach(b=>b.onclick=()=>{ if(ui.recording) stopRec(); ui.tab=b.dataset.tab; render(); });
 }
-function paneAtalho(){
-  return `<h2>Atalho</h2><p class="lead">Funciona em qualquer janela, inclusive com os Ajustes fechados. Muta a fonte padrão do PipeWire, então todo app de chamada escuta silêncio.</p>
-  <div class="grp">
-    <div class="r"><div class="lb">Mutar e desmutar<span>Também pelo menu da tray e pelo celular</span></div>
-      <div class="combo ${ui.recording?'rec':''}" id="combo">${ui.recording?'Pressione as teclas…':kbds(S.shortcut)}</div>
-      <button class="btn" id="rec">${ui.recording?'Cancelar':'Trocar'}</button>
-      ${S.shortcut!=='Ctrl+Shift+M'?`<button class="btn sm" id="scReset">Padrão</button>`:''}
+function scRow([a,l,sub]){
+  const v = S.shortcuts[a], rec = ui.recording===a;
+  const hold = S.holding && S.holding.kind===a;
+  return `<div class="r scrow"><div class="lb">${l}<span>${sub}</span></div>
+      <div class="combo ${rec?'rec':''}" ${rec?'id="recCombo" tabindex="-1"':''}>${rec?'Pressione as teclas…': v?kbds(v):'<span class="none">sem atalho</span>'}</div>
+      <button class="btn" data-rec="${a}">${rec?'Cancelar': v?'Trocar':'Definir'}</button>
+      ${a==='toggle_mute' ? (v!=='Ctrl+Shift+M'?`<button class="btn sm" id="scReset">Padrão</button>`:'') : (v&&!rec?`<button class="btn sm danger" data-clear="${a}">Remover</button>`:'')}
     </div>
-    ${ui.recording?`<div class="r"><span class="note">Enquanto grava, o atalho atual fica desregistrado para o X11 não engolir as teclas. Esc cancela.</span></div>`:''}
-    ${scErr()?`<div class="r"><span class="note err">${esc(scErr())}</span></div>`:''}
-  </div>
-  <div class="sec">Mapeado para o futuro</div>
-  <div class="grp fut">
-    ${[['Segurar para falar','Ctrl+Space'],['Segurar para tossir','Ctrl+Shift+Space'],['Câmera on/off (Meet)','Ctrl+Shift+O'],['Sair da chamada (Meet)','Ctrl+Shift+H']]
-      .map(([l,k])=>`<div class="r"><div class="lb">${l}</div><div class="combo">${kbds(k)}</div><span class="soon">em breve</span></div>`).join('')}
-  </div>`;
+    ${hold?`<div class="r"><span class="note okn">Segurando agora · solte para voltar a ${S.holding.prior?'mudo':'no ar'}</span></div>`:''}
+    ${rec?`<div class="r"><span class="note">Enquanto grava, os atalhos ficam desregistrados para o X11 não engolir as teclas. Esc cancela.</span></div>`:''}
+    ${scErr(a)?`<div class="r"><span class="note err">${esc(scErr(a))}</span></div>`:''}`;
+}
+function paneAtalho(){
+  return `<h2>Atalhos</h2><p class="lead">Funcionam em qualquer janela, inclusive com os Ajustes fechados. Um atalho global vale para o sistema todo, então os novos começam sem tecla: escolha combinações que você não usa em outros apps.</p>
+  <div class="sec">Microfone</div>
+  <div class="grp">${ACTIONS.slice(0,3).map(scRow).join('')}</div>
+  <div class="sec">Chamada no Meet</div>
+  <div class="grp">${ACTIONS.slice(3).map(scRow).join('')}
+    ${S.browsers.length?'':`<div class="r"><span class="note wn">Precisa da extensão do Muttei no navegador (Ajustes &gt; Meet).</span></div>`}</div>`;
 }
 function paneRegras(){
   return `<h2>Regras</h2><p class="lead">Regras só mutam. Nunca abrem o microfone sozinhas.</p>
@@ -154,7 +179,8 @@ function renderPane(){
   const P = {atalho:paneAtalho, regras:paneRegras, celular:paneCelular, meet:paneMeet, geral:paneGeral}[ui.tab];
   const sp = $('#spane'); sp.innerHTML = P();
   const on = (id,f)=>{ const el=sp.querySelector('#'+id); if(el) el.onclick=f; };
-  on('rec', ()=> ui.recording ? stopRec() : startRec());
+  sp.querySelectorAll('[data-rec]').forEach(b=>b.onclick=()=> ui.recording===b.dataset.rec ? stopRec() : (ui.recording && invoke('rec_cancel'), startRec(b.dataset.rec)));
+  sp.querySelectorAll('[data-clear]').forEach(b=>b.onclick=()=>invoke('clear_shortcut',{action:b.dataset.clear}));
   on('scReset', ()=>invoke('reset_shortcut').catch(()=>{}));
   on('swLock', ()=>patch({lock_rule:!S.lock_rule}));
   on('swApp', ()=>patch({app_rule:!S.app_rule}));
@@ -180,6 +206,7 @@ function renderPane(){
   on('introBtn', intro);
   const c = sp.querySelector('#corner'); if(c){ c.value=S.dot_corner; c.onchange=()=>patch({dot_corner:c.value}); }
   if(focusId){ const el = document.getElementById(focusId); if(el) el.focus(); }
+  const rc = document.getElementById('recCombo'); if(rc) rc.focus();
 }
 function render(){ if(!S) return; renderNav(); renderPane(); }
 

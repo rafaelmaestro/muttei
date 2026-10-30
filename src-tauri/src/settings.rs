@@ -4,6 +4,18 @@ use std::path::PathBuf;
 
 pub const TOGGLE_MUTE: &str = "toggle_mute";
 pub const DEFAULT_SHORTCUT: &str = "Ctrl+Shift+M";
+pub const ACTIONS: &[(&str, &str)] = &[
+    (TOGGLE_MUTE, "Mutar e desmutar"),
+    ("ptt", "Segurar para falar"),
+    ("ptc", "Segurar para tossir"),
+    ("camera", "Câmera on/off"),
+    ("hand", "Levantar a mão"),
+    ("leave", "Sair da chamada"),
+];
+const TAKEN: &[(&str, &str)] = &[
+    ("Super+L", "Super+L é do GNOME (travar a tela)."),
+    ("Ctrl+Alt+T", "Ctrl+Alt+T já abre o Terminal no GNOME."),
+];
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Debug)]
 pub struct Device {
@@ -91,6 +103,23 @@ impl Settings {
         self.shortcuts.get(TOGGLE_MUTE).cloned().unwrap_or_else(|| DEFAULT_SHORTCUT.into())
     }
 
+    pub fn validate_shortcut(&self, action: &str, combo: &str) -> Result<(), String> {
+        if !ACTIONS.iter().any(|(a, _)| *a == action) {
+            return Err(format!("Ação desconhecida: {action}"));
+        }
+        if let Some((_, why)) = TAKEN.iter().find(|(k, _)| *k == combo) {
+            return Err(why.to_string());
+        }
+        if !combo.contains('+') {
+            return Err("Use pelo menos um modificador (Ctrl, Alt, Shift ou Super).".into());
+        }
+        if let Some((other, _)) = self.shortcuts.iter().find(|(a, c)| a.as_str() != action && c.as_str() == combo) {
+            let label = ACTIONS.iter().find(|(a, _)| a == other).map(|(_, l)| *l).unwrap_or(other);
+            return Err(format!("{combo} já é o atalho de \"{label}\"."));
+        }
+        Ok(())
+    }
+
     pub fn merge(&self, patch: serde_json::Value) -> Result<Self, String> {
         let mut v = serde_json::to_value(self).map_err(|e| e.to_string())?;
         if let (Some(obj), Some(p)) = (v.as_object_mut(), patch.as_object()) {
@@ -113,6 +142,20 @@ mod tests {
         assert!(!n.sound);
         assert_eq!(n.apps, vec!["discord"]);
         assert_eq!(n.shortcut(), DEFAULT_SHORTCUT);
+    }
+
+    #[test]
+    fn validates_shortcuts() {
+        let mut s = Settings::default();
+        assert!(s.validate_shortcut("ptt", "Ctrl+Alt+Space").is_ok());
+        s.shortcuts.insert("ptt".into(), "Ctrl+Alt+Space".into());
+        assert!(s.validate_shortcut("camera", "Ctrl+Alt+Space").unwrap_err().contains("Segurar para falar"));
+        assert!(s.validate_shortcut("ptt", "Ctrl+Alt+Space").is_ok());
+        assert!(s.validate_shortcut("hand", "Ctrl+Shift+M").unwrap_err().contains("Mutar"));
+        assert!(s.validate_shortcut("hand", "Super+L").is_err());
+        assert!(s.validate_shortcut("hand", "H").is_err());
+        assert!(s.validate_shortcut("nope", "Ctrl+H").is_err());
+        assert!(s.validate_shortcut("ptt", "Ctrl+Space").is_ok());
     }
 
     #[test]

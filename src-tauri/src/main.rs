@@ -6,6 +6,7 @@ mod settings;
 use remote::{Iface, PairResult, Pairing};
 use serde::Serialize;
 use settings::{Browser, Device, Settings, DEFAULT_SHORTCUT, TOGGLE_MUTE};
+use std::collections::BTreeMap;
 use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -51,7 +52,7 @@ pub struct Core {
     pub tx: broadcast::Sender<Event>,
     live: Mutex<HashMap<String, u32>>,
     pair_until: Mutex<Option<Instant>>,
-    sc_err: Mutex<String>,
+    sc_errs: Mutex<BTreeMap<String, String>>,
     last: Mutex<String>,
     running: Mutex<HashSet<String>>,
     tray: Mutex<Option<Tray>>,
@@ -68,6 +69,7 @@ struct PublicDevice {
 struct Snapshot {
     muted: bool,
     shortcut: String,
+    shortcuts: BTreeMap<String, String>,
     sound: bool,
     pill: bool,
     dot: bool,
@@ -93,7 +95,7 @@ struct Snapshot {
     ufw: bool,
     browsers: Vec<(Browser, bool)>,
     pair_left: u64,
-    sc_err: String,
+    sc_errs: BTreeMap<String, String>,
     last: String,
     intro_seen: bool,
 }
@@ -105,12 +107,6 @@ fn now_label() -> String {
         .map(|o| format!("pareado em {}", String::from_utf8_lossy(&o.stdout).trim()))
         .unwrap_or_else(|_| "pareado agora".into())
 }
-
-const TAKEN: &[(&str, &str)] = &[
-    ("Ctrl+Space", "Ctrl+Space já está em uso pelo IBus (troca de layout do teclado). Escolha outro atalho."),
-    ("Super+L", "Super+L é do GNOME (travar a tela)."),
-    ("Ctrl+Alt+T", "Ctrl+Alt+T já abre o Terminal no GNOME."),
-];
 
 impl Core {
     pub fn muted(&self) -> bool {
@@ -137,6 +133,7 @@ impl Core {
         Snapshot {
             muted: self.muted(),
             shortcut: s.shortcut(),
+            shortcuts: s.shortcuts.clone(),
             sound: s.sound,
             pill: s.pill,
             dot: s.dot,
@@ -162,7 +159,7 @@ impl Core {
             ufw: remote::ufw_enabled(),
             browsers: s.meet_browsers.iter().map(|b| (b.clone(), live.get(&b.id).copied().unwrap_or(0) > 0)).collect(),
             pair_left: left,
-            sc_err: self.sc_err.lock().unwrap().clone(),
+            sc_errs: self.sc_errs.lock().unwrap().clone(),
             last: self.last.lock().unwrap().clone(),
             intro_seen: s.intro_seen,
         }
@@ -339,52 +336,74 @@ impl Core {
         want.is_some() && want != *self.phone_addr.lock().unwrap()
     }
 
-    fn register(self: &Arc<Self>, combo: &str) -> Result<(), String> {
-        let core = self.clone();
-        self.app
-            .global_shortcut()
-            .on_shortcut(combo, move |_, _, e| {
-                if e.state == ShortcutState::Pressed {
-                    core.toggle("atalho");
-                }
-            })
-            .map_err(|e| e.to_string())
+    fn on_key(&self, action: &str, state: ShortcutState) {
+        if action == TOGGLE_MUTE && state == ShortcutState::Pressed {
+            self.toggle("atalho");
+        }
     }
 
-    fn register_current(self: &Arc<Self>) {
-        let combo = self.settings().shortcut();
-        let err = self.register(&combo).err().map(|e| format!("Não consegui registrar {combo}: {e}. Outro programa pode estar usando esse atalho."));
-        *self.sc_err.lock().unwrap() = err.unwrap_or_default();
+    fn register_all(self: &Arc<Self>) {
+        let gs = self.app.global_shortcut();
+        let _ = gs.unregister_all();
+        let mut errs = BTreeMap::new();
+        for (action, combo) in self.settings().shortcuts {
+            let core = self.clone();
+            let a = action.clone();
+            if let Err(e) = gs.on_shortcut(combo.as_str(), move |_, _, e| core.on_key(&a, e.state)) {
+                errs.insert(action, format!("Não consegui registrar {combo}: {e}. Outro programa pode estar usando esse atalho."));
+            }
+        }
+        *self.sc_errs.lock().unwrap() = errs;
     }
 
-    fn set_shortcut(self: &Arc<Self>, combo: &str) -> Result<(), String> {
-        let fail = |e: String| {
-            *self.sc_err.lock().unwrap() = e.clone();
-            self.register_current();
-            *self.sc_err.lock().unwrap() = e.clone();
-            self.emit_state();
-            Err(e)
+    fn set_shortcut(self: &Arc<Self>, action: &str, combo: &str) -> Result<(), String> {
+        let old = {
+            let mut s = self.s.lock().unwrap();
+            if let Err(e) = s.validate_shortcut(action, combo) {
+                drop(s);
+                self.register_all();
+                self.sc_errs.lock().unwrap().insert(action.into(), e.clone());
+                self.emit_state();
+                return Err(e);
+            }
+            let old = s.shortcuts.insert(action.into(), combo.into());
+            s.save();
+            old
         };
-        if let Some((_, why)) = TAKEN.iter().find(|(k, _)| *k == combo) {
-            return fail(why.to_string());
+        self.register_all();
+        let failed = self.sc_errs.lock().unwrap().get(action).cloned();
+        if let Some(e) = failed {
+            {
+                let mut s = self.s.lock().unwrap();
+                match old {
+                    Some(o) => s.shortcuts.insert(action.into(), o),
+                    None => s.shortcuts.remove(action),
+                };
+                s.save();
+            }
+            self.register_all();
+            self.sc_errs.lock().unwrap().insert(action.into(), e.clone());
+            self.emit_state();
+            return Err(e);
         }
-        if !combo.contains('+') {
-            return fail("Use pelo menos um modificador (Ctrl, Alt, Shift ou Super).".into());
-        }
-        let _ = self.app.global_shortcut().unregister_all();
-        if let Err(e) = self.register(combo) {
-            return fail(format!("Não consegui registrar {combo}: {e}. Outro programa pode estar usando esse atalho."));
+        self.update_indicators();
+        let label = settings::ACTIONS.iter().find(|(a, _)| *a == action).map(|(_, l)| *l).unwrap_or(action);
+        self.toast(&format!("Atalho salvo: {label} · {combo}"));
+        self.emit_state();
+        Ok(())
+    }
+
+    fn clear_shortcut(self: &Arc<Self>, action: &str) {
+        if action == TOGGLE_MUTE {
+            return;
         }
         {
             let mut s = self.s.lock().unwrap();
-            s.shortcuts.insert(TOGGLE_MUTE.into(), combo.into());
+            s.shortcuts.remove(action);
             s.save();
         }
-        *self.sc_err.lock().unwrap() = String::new();
-        self.update_indicators();
-        self.toast(&format!("Atalho salvo: {combo}"));
+        self.register_all();
         self.emit_state();
-        Ok(())
     }
 
     fn update(self: &Arc<Self>, patch: serde_json::Value) -> Result<(), String> {
@@ -520,16 +539,20 @@ fn rec_start(core: C) {
 }
 #[tauri::command]
 fn rec_cancel(core: C) {
-    core.register_current();
+    core.register_all();
     core.emit_state();
 }
 #[tauri::command]
-fn set_shortcut(core: C, combo: String) -> Result<(), String> {
-    core.set_shortcut(&combo)
+fn set_shortcut(core: C, action: String, combo: String) -> Result<(), String> {
+    core.set_shortcut(&action, &combo)
+}
+#[tauri::command]
+fn clear_shortcut(core: C, action: String) {
+    core.clear_shortcut(&action);
 }
 #[tauri::command]
 fn reset_shortcut(core: C) -> Result<(), String> {
-    core.set_shortcut(DEFAULT_SHORTCUT)
+    core.set_shortcut(TOGGLE_MUTE, DEFAULT_SHORTCUT)
 }
 #[tauri::command]
 fn regen_code(core: C) {
@@ -585,7 +608,7 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
         tx,
         live: Mutex::new(HashMap::new()),
         pair_until: Mutex::new(None),
-        sc_err: Mutex::new(String::new()),
+        sc_errs: Mutex::new(BTreeMap::new()),
         last: Mutex::new("wpctl get-volume @DEFAULT_AUDIO_SOURCE@".into()),
         running: Mutex::new(HashSet::new()),
         tray: Mutex::new(None),
@@ -628,7 +651,7 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
         let a = app.autolaunch();
         let _ = if s.autostart { a.enable() } else { a.disable() };
     }
-    core.register_current();
+    core.register_all();
     core.update_indicators();
     core.restart_phone();
     tauri::async_runtime::spawn(remote::serve_meet(core.clone()));
@@ -714,7 +737,7 @@ fn main() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
         .invoke_handler(tauri::generate_handler![
-            get_state, toggle_mute, update, rec_start, rec_cancel, set_shortcut, reset_shortcut, regen_code, revoke, pair_window, test_sound, lock_now, hide_settings, dot_ready
+            get_state, toggle_mute, update, rec_start, rec_cancel, set_shortcut, clear_shortcut, reset_shortcut, regen_code, revoke, pair_window, test_sound, lock_now, hide_settings, dot_ready
         ])
         .setup(|app| Ok(setup(app.handle())?))
         .build(tauri::generate_context!())

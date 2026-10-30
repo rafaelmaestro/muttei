@@ -79,11 +79,19 @@ https://claude.ai/artifact/CaqrnFcSV88Hp2UaVBwaWB (v1, 30/10)
 - [ ] Extensão no Chrome em `meet.google.com/new` acompanha
 - [ ] Autostart sobe na tray após reiniciar a sessão
 
-## Futuro (mapeado, fora da v1)
-- [-] Push-to-talk (Ctrl+Space): press/release, restaurar estado anterior, debounce do autorepeat do X11, conflito com IBus
-- [-] Push-to-cough (Ctrl+Shift+Space): mesmo mecanismo invertido
-- [-] Câmera on/off (Ctrl+Shift+O): clique no `content.js` + botão no celular
-- [-] Sair da chamada (Ctrl+Shift+H): clique no `content.js` + botão no celular
-- [-] Levantar a mão (Ctrl+Shift+K): só no Teams
-- [-] Integração com Teams: API de terceiros (WebSocket local)
+## 8. Fase 2
+- [x] Protótipo v3: lista de 6 atalhos, segurar para falar/tossir, câmera/mão/sair no Meet e no celular · smoke test headless ok
+- [x] Layout da fase 2 aprovado pelo usuário · v4 corrigiu a gravação de teclas (feedback ao vivo, mais teclas, aviso de tecla inválida)
+- [x] Atalhos por ação (`toggle_mute`, `ptt`, `ptc`, `camera`, `hand`, `leave`); novos começam sem tecla
+- [x] Recusar combinação repetida entre ações; tirar o aviso errado de Ctrl+Space (o IBus aqui é Super+Space) · teste
+- [ ] `ptt.rs`: restaura o estado anterior, ignora autorepeat, toggle durante o hold muda o que volta · testes
+- [ ] Spike: eventos Pressed/Released do X11 segurando a tecla (debounce de 60 ms se piscar)
+- [ ] Pílula "No ar · segurando" e retorno ao soltar
+- [ ] Servidor: `Cmd` para a extensão, `result` vira pílula, aviso "Meet não conectado"
+- [ ] `content.js`: câmera, mão e sair por aria-label pt/en; "Botão não encontrado no Meet"
+- [ ] Celular: botões câmera, mão e sair, apagados sem Meet; vibra no ack
+- [ ] Manual: câmera/mão/sair num Meet real, pelo atalho e pelo celular
+
+## Fora do escopo
+- [-] Integração com Teams
 - [-] Trial / licença / pagamento

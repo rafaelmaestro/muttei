@@ -64,8 +64,9 @@ input.in:focus,select.in:focus{border-color:var(--accent)}
 .note.err{color:var(--bad)}
 .note.okn{color:var(--ok)}
 .note.wn{color:var(--orange)}
-.fut{opacity:.55}
-.fut .soon{font:10.5px var(--mono);color:var(--comment);border:1px dashed var(--line);border-radius:3px;padding:0 5px}
+.combo .none{color:var(--comment)}
+.r.scrow .lb{min-width:150px}
+.r.scrow .combo{min-width:130px}
 
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{display:flex;gap:6px;align-items:center;padding:2px 4px 2px 9px;border:1px solid var(--line);border-radius:999px;font:12px var(--mono);background:var(--win)}
