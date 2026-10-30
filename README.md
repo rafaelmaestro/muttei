@@ -125,7 +125,7 @@ O `.deb` já puxa as dependências de execução: `wireplumber`, `pipewire-bin`,
 sudo apt install libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev build-essential pkg-config
 cargo install tauri-cli --version '^2'
 ./scripts/package-deb.sh
-sudo apt install ./src-tauri/target/release/bundle/deb/Muttei_0.1.0_amd64.deb
+sudo apt install ./src-tauri/target/release/bundle/deb/Muttei_0.2.0_amd64.deb
 ```
 
 **Para desenvolver:**
