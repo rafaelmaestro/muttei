@@ -130,8 +130,3 @@ cd src-tauri && cargo tauri dev
 1. Abra `chrome://extensions` e ligue o modo desenvolvedor.
 2. Clique em "Carregar sem compactação" e escolha a pasta `extension/`.
 3. A primeira extensão que se conecta é aprovada sozinha. As outras precisam ser pareadas em Ajustes > Meet.
-
-## Marca e andamento
-
-- O logo, as variações e o guia de uso ficam em [`brand/`](brand/GUIDELINES.md).
-- O que já foi feito e o que falta ficam em [`CHECKLIST.md`](CHECKLIST.md).
