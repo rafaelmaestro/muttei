@@ -22,6 +22,8 @@ kbd{font:11px var(--mono);padding:0 4px;border:1px solid var(--line);border-radi
 .wnd{background:var(--panel);border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;min-width:0;overflow:hidden;height:100%}
 .wbar{height:34px;flex:none;display:flex;align-items:center;gap:10px;padding:0 10px 0 12px;border-bottom:1px solid var(--line);background:#1c1d26;user-select:none}
 .wbar b{font-weight:600;font-size:12.5px}
+.wbar .wlogo{width:18px;height:18px;flex:none;margin-right:-2px}
+.dlogo{height:34px;justify-self:start}
 .wbar .sp{flex:1}
 .wbar .x{width:20px;height:20px;border-radius:50%;background:#2c2d3a;color:var(--muted);display:grid;place-items:center;font-size:11px}
 .wbar .x:hover{background:#3a3b4c;color:var(--fg)}

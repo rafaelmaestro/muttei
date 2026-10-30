@@ -118,8 +118,12 @@ FILES = {
     "tray-muted.svg": tray(True),
 }
 
+UI_COPIES = {"logo-mark.svg": "symbol-small-dark.svg", "logo-lockup.svg": "horizontal-dark.svg"}
+
 if __name__ == "__main__":
     OUT.mkdir(exist_ok=True)
     for name, body in FILES.items():
         (OUT / name).write_text(body)
-    print(f"{len(FILES)} files in {OUT}")
+    for ui_name, src in UI_COPIES.items():
+        (ROOT.parent / "ui" / ui_name).write_text(FILES[src])
+    print(f"{len(FILES)} files in {OUT}, {len(UI_COPIES)} copied to ui/")

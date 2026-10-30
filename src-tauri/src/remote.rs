@@ -155,6 +155,7 @@ fn woff2(b: &'static [u8]) -> impl IntoResponse {
 pub async fn serve_phone(core: Arc<Core>, addr: SocketAddr, stop: oneshot::Receiver<()>) -> std::io::Result<()> {
     let app = Router::new()
         .route("/", get(|| async { Html(include_str!("../../ui/phone.html")) }))
+        .route("/logo.svg", get(|| async { ([(axum::http::header::CONTENT_TYPE, "image/svg+xml")], include_str!("../../ui/logo-lockup.svg")) }))
         .route("/fonts/IBMPlexSans.woff2", get(|| async { woff2(include_bytes!("../../ui/fonts/IBMPlexSans.woff2")) }))
         .route("/fonts/JetBrainsMono.woff2", get(|| async { woff2(include_bytes!("../../ui/fonts/JetBrainsMono.woff2")) }))
         .route("/ws", get(phone_ws))
