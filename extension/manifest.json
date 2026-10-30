@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Muttei",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Faz o ícone de microfone do Google Meet acompanhar o Muttei.",
   "icons": { "32": "icon32.png", "128": "icon128.png" },
   "action": { "default_title": "Muttei", "default_icon": { "32": "icon32.png" } },

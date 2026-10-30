@@ -144,7 +144,7 @@ No macOS 15, se a opção Abrir não aparecer, vá em Ajustes do Sistema > Priva
 sudo apt install libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev build-essential pkg-config
 cargo install tauri-cli --version '^2'
 ./scripts/package-deb.sh
-sudo apt install ./src-tauri/target/release/bundle/deb/Muttei_0.4.0_amd64.deb
+sudo apt install ./src-tauri/target/release/bundle/deb/Muttei_0.5.0_amd64.deb
 ```
 
 **Para desenvolver:**
@@ -169,4 +169,4 @@ Com o Muttei aberto, a extensão se conecta sozinha. A primeira é aprovada auto
 
 Para publicar no Edge Add-ons ([partner.microsoft.com](https://partner.microsoft.com/dashboard/microsoftedge/overview)), use o mesmo zip e os mesmos textos. Lá a conta é gratuita.
 
-**Para publicar uma versão:** suba a versão em `src-tauri/tauri.conf.json` e envie uma tag `v*`, por exemplo `git tag v0.4.0 && git push --tags`. O workflow `Release` roda os testes no Linux, no Windows e no macOS, gera o `.deb`, o `.exe`, o `.dmg` e o zip da extensão e cria a release com eles.
+**Para publicar uma versão:** suba a versão em `src-tauri/tauri.conf.json` e envie uma tag `v*`, por exemplo `git tag v0.5.0 && git push --tags`. O workflow `Release` roda os testes no Linux, no Windows e no macOS, gera o `.deb`, o `.exe`, o `.dmg` e o zip da extensão e cria a release com eles.
