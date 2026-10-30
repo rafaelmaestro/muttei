@@ -91,7 +91,7 @@ pub fn mics() -> Vec<Mic> {
         .filter_map(|i| {
             let d = unsafe { list.Item(i) }.ok()?;
             let name = id(&d)?;
-            Some(Mic { id: name.clone(), desc: friendly(&d).unwrap_or_else(|| name.clone()), def: def.as_deref() == Some(name.as_str()), name })
+            Some(Mic { id: name.clone(), desc: friendly(&d).unwrap_or_else(|| name.clone()), def: def.as_deref() == Some(name.as_str()), name, ..Default::default() })
         })
         .collect()
 }

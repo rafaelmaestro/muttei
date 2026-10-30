@@ -43,7 +43,7 @@ O microfone é do sistema, não do app da chamada. Então o botão também dever
 ## O que ele faz
 
 ### Um atalho para tudo
-`Ctrl+Shift+M` funciona com o Meet, o Zoom, o Discord, o Slack, o navegador e o que mais usar o microfone, porque age no dispositivo e não no app. Nos Ajustes você troca a tecla e define atalhos opcionais para segurar para falar e segurar para tossir. Os atalhos novos começam sem tecla. O atalho muta sempre o microfone em uso. Em Ajustes > Geral, ou pelo celular, você troca qual microfone está em uso, por exemplo do headset para o da webcam. Os apps que usam o microfone padrão passam para ele, e o novo mic mantém o estado: se você estava mudo, continua mudo.
+`Ctrl+Shift+M` funciona com o Meet, o Zoom, o Discord, o Slack, o navegador e o que mais usar o microfone, porque age no dispositivo e não no app. Nos Ajustes você troca a tecla e define atalhos opcionais para segurar para falar e segurar para tossir. Os atalhos novos começam sem tecla. O atalho muta sempre o microfone em uso. Em Ajustes > Geral, ou pelo celular, você troca qual microfone está em uso, por exemplo do headset para o da webcam. Os apps que usam o microfone padrão passam para ele, e o novo mic mantém o estado: se você estava mudo, continua mudo. Um fone Bluetooth no modo música, que não tem microfone, também aparece na lista. Ao escolher, o Muttei passa o fone para o modo headset e, quando você troca de microfone, volta para o modo música.
 
 <p align="center"><img src="docs/shots/ajustes.png" alt="Aba Atalho dos Ajustes do Muttei" width="640"></p>
 

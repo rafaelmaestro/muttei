@@ -82,6 +82,8 @@ pub struct Core {
     sc_errs: Mutex<BTreeMap<String, String>>,
     last: Mutex<String>,
     mics: Mutex<Vec<audio::Mic>>,
+    // a headset Muttei switched to its mic profile, and the profile to put back
+    headset_back: Mutex<Option<(String, String)>>,
     running: Mutex<HashSet<String>>,
     tray: Mutex<Option<Tray>>,
     hold: Mutex<ptt::Hold>,
@@ -123,6 +125,7 @@ struct Snapshot {
     app_rule: bool,
     meet_rule: bool,
     mics: Vec<audio::Mic>,
+    headset_on: bool,
     apps: Vec<String>,
     running: Vec<String>,
     phone_on: bool,
@@ -168,6 +171,16 @@ impl Core {
 
     fn refresh_mics(&self) {
         let mics = audio::mics();
+        // pw-dump can come back empty while the graph is changing (a profile switch); keep the last good list
+        if mics.is_empty() {
+            return;
+        }
+        // the headset went away (powered off, out of range): nothing left to switch back
+        let mut back = self.headset_back.lock().unwrap();
+        if back.as_ref().is_some_and(|(dev, _)| !mics.iter().any(|m| &m.dev == dev)) {
+            *back = None;
+        }
+        drop(back);
         let relist = *self.mics.lock().unwrap() != mics;
         *self.mics.lock().unwrap() = mics;
         if relist {
@@ -183,8 +196,13 @@ impl Core {
     /// Makes `name` the system's default input. The new mic takes the current mute state,
     /// so switching while muted never opens a microphone by surprise.
     pub fn use_mic(&self, name: &str, src: &str) -> bool {
-        let Some(mic) = audio::pick(&self.mics(), name).cloned() else { return false };
-        if !mic.def {
+        let Some(picked) = audio::pick(&audio::mics(), name).or(audio::pick(&self.mics(), name)).cloned() else { return false };
+        let Some(mic) = audio::activate(&picked) else {
+            self.pill("warn", "O fone não entrou no modo headset", &picked.desc);
+            return false;
+        };
+        // always applied: the cached list can lag a profile switch, and re-setting the default is harmless
+        {
             let _g = self.audio_lock.lock().unwrap();
             // by id, not @DEFAULT: the default may still point at the old mic for a moment
             if !audio::set_default(&mic.id) || !audio::set_muted(&mic.id, self.muted()) {
@@ -193,6 +211,18 @@ impl Core {
                 return false;
             }
             *self.last.lock().unwrap() = audio::default_text(&mic.id);
+        }
+        {
+            let mut back = self.headset_back.lock().unwrap();
+            match back.take() {
+                Some((dev, idx)) if dev != mic.dev => {
+                    audio::set_profile(&dev, &idx);
+                }
+                keep => *back = keep,
+            }
+            if let Some((_, now)) = picked.profile {
+                *back = Some((mic.dev.clone(), now));
+            }
         }
         self.refresh_mics();
         self.pill_icon(if self.muted() { "off" } else { "on" }, "Microfone em uso", &format!("{} · {src}", mic.desc), "mic");
@@ -237,6 +267,7 @@ impl Core {
             app_rule: s.app_rule,
             meet_rule: s.meet_rule,
             mics: self.mics(),
+            headset_on: self.headset_back.lock().unwrap().is_some(),
             apps: s.apps.clone(),
             running: self.running.lock().unwrap().iter().filter(|r| s.apps.contains(r)).cloned().collect(),
             phone_on: s.phone_on,
@@ -780,9 +811,11 @@ fn toggle_mute(core: C) -> bool {
 fn update(core: C, patch: serde_json::Value) -> Result<(), String> {
     core.update(patch)
 }
+// a headset can take a few seconds to switch profiles; keep that off the UI thread
 #[tauri::command]
-fn use_mic(core: C, name: String) -> bool {
-    core.use_mic(&name, "ajustes")
+fn use_mic(core: C, name: String) {
+    let c = core.inner().clone();
+    std::thread::spawn(move || c.use_mic(&name, "ajustes"));
 }
 #[tauri::command]
 fn rec_start(core: C) {
@@ -866,6 +899,7 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
         sc_errs: Mutex::new(BTreeMap::new()),
         last: Mutex::new(audio::read_text(audio::DEFAULT)),
         mics: Mutex::new(mics),
+        headset_back: Mutex::new(None),
         running: Mutex::new(HashSet::new()),
         tray: Mutex::new(None),
         hold: Mutex::new(ptt::Hold::default()),

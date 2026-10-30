@@ -199,7 +199,8 @@ async fn phone_loop(mut ws: WebSocket, core: Arc<Core>, ua: String) {
                         let reply = match v["t"].as_str() {
                             Some("toggle") => json!({"t":"ack","muted":core.toggle("celular")}),
                             Some("mic") => {
-                                core.use_mic(v["name"].as_str().unwrap_or(""), "celular");
+                                let (c, name) = (core.clone(), v["name"].as_str().unwrap_or("").to_string());
+                                let _ = tokio::task::spawn_blocking(move || c.use_mic(&name, "celular")).await;
                                 phone_state(&core, &host)
                             }
                             Some("cmd") => {

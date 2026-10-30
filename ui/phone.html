@@ -145,7 +145,7 @@ function render(){
 }
 function micPicker(){
   if(!st.mics.length) return '';
-  return `<div class="pmic"><label for="pMicSel">Mic em uso</label><select id="pMicSel">${st.mics.map(m=>`<option value="${esc(m.name)}">${esc(m.desc)}</option>`).join('')}</select></div>`;
+  return `<div class="pmic"><label for="pMicSel">Mic em uso</label><select id="pMicSel">${st.mics.map(m=>`<option value="${esc(m.name)}">${esc(m.desc)}${m.headset?' · Bluetooth':''}</option>`).join('')}</select></div>`;
 }
 render();
 connect();

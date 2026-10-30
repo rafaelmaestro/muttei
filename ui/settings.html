@@ -185,8 +185,8 @@ function paneMeet(){
 function paneGeral(){
   return `<h2>Geral</h2>
   <div class="grp">
-    <div class="r"><div class="lb">Microfone em uso<span>Troca o microfone padrão do sistema. Os apps que usam o padrão passam para ele, e o atalho muta sempre o que está em uso.</span></div>
-      <select class="in" id="micSel">${S.mics.map(m=>`<option value="${esc(m.name)}">${esc(m.desc)}</option>`).join('')}</select></div>
+    <div class="r"><div class="lb">Microfone em uso<span>${S.headset_on?'Fone Bluetooth no modo headset, com som de ligação. Ao trocar de microfone, ele volta para o modo música.':'Troca o microfone padrão do sistema. Os apps que usam o padrão passam para ele, e o atalho muta sempre o que está em uso.'}</span></div>
+      <select class="in" id="micSel">${S.mics.map(m=>`<option value="${esc(m.name)}">${esc(m.desc)}${m.headset?' · Bluetooth':''}</option>`).join('')}</select></div>
     <div class="r"><div class="lb">Som ao mutar e desmutar<span>Toca só na saída de áudio, nunca entra no microfone</span></div><button class="btn sm" id="testSnd">Testar</button>${sw('swSound',S.sound,'Som')}</div>
     <div class="r"><div class="lb">Pílula no topo da tela<span>"No ar" ou "Mudo" por 1,5 s a cada troca</span></div>${sw('swPill',S.pill,'Pílula')}</div>
     <div class="r"><div class="lb">Indicador fixo<span>Fica no canto da tela enquanto estiver mudo. ${T().shot}</span></div>

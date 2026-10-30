@@ -172,7 +172,7 @@ pub fn mics() -> Vec<Mic> {
         .filter(|&d| has_input(d))
         .filter_map(|d| {
             let uid = string_prop(d, UID)?;
-            Some(Mic { id: uid.clone(), desc: string_prop(d, NAME).unwrap_or_else(|| uid.clone()), def: def == Some(d), name: uid })
+            Some(Mic { id: uid.clone(), desc: string_prop(d, NAME).unwrap_or_else(|| uid.clone()), def: def == Some(d), name: uid, ..Default::default() })
         })
         .collect()
 }
