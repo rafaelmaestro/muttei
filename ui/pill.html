@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><link rel="stylesheet" href="style.css"><script src="icons.js"></script></head>
+<body>
+<div class="pill" id="pill" role="status" aria-live="polite"></div>
+<script>
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+let t;
+window.__TAURI__.event.listen('pill', ({payload:{kind,text,sub}})=>{
+  const p = document.getElementById('pill');
+  p.className = 'pill show ' + kind;
+  p.innerHTML = `<span class="ic">${kind==='on'?ICON.mic:kind==='off'?ICON.micOff:ICON.warn}</span>${esc(text)}${sub?` <small>${esc(sub)}</small>`:''}`;
+  clearTimeout(t); t = setTimeout(()=>p.classList.remove('show'),1500);
+});
+</script>
+</body>
+</html>

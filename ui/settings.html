@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Ajustes do Muttei</title>
+<link rel="stylesheet" href="style.css">
+<script src="icons.js"></script>
+</head>
+<body>
+<div class="wnd">
+  <div class="wbar" data-tauri-drag-region><b data-tauri-drag-region>Ajustes do Muttei</b><span class="sp" data-tauri-drag-region></span><button class="x" id="close" aria-label="Fechar">✕</button></div>
+  <div class="set">
+    <nav class="snav" id="snav" role="tablist" aria-label="Seções"></nav>
+    <div class="spane" id="spane"></div>
+  </div>
+</div>
+<div id="overlay"></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<script>
+const { invoke } = window.__TAURI__.core;
+const { listen } = window.__TAURI__.event;
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+let S = null;
+const ui = { tab:'atalho', recording:false, localErr:'' };
+const patch = p => invoke('update', { patch:p }).catch(e=>toast(String(e)));
+
+function comboOf(e){
+  const k = e.code;
+  const key = k.startsWith('Key')?k.slice(3): k.startsWith('Digit')?k.slice(5): k==='Space'?'Space': /^F\d+$/.test(k)?k: null;
+  if(!key) return null;
+  const mods = [e.ctrlKey&&'Ctrl', e.altKey&&'Alt', e.shiftKey&&'Shift', e.metaKey&&'Super'].filter(Boolean);
+  return {mods, key, str:[...mods,key].join('+')};
+}
+function startRec(){ ui.recording=true; ui.localErr=''; invoke('rec_start'); render(); }
+function stopRec(){ ui.recording=false; invoke('rec_cancel'); render(); }
+document.addEventListener('keydown', e=>{
+  if(ui.recording){
+    if(e.key==='Escape'){ stopRec(); return; }
+    const c = comboOf(e);
+    if(!c) return;
+    e.preventDefault();
+    if(!c.mods.length){ ui.localErr='Use pelo menos um modificador (Ctrl, Alt, Shift ou Super).'; render(); return; }
+    ui.recording=false; ui.localErr='';
+    invoke('set_shortcut', { combo:c.str }).catch(()=>{});
+    render(); return;
+  }
+  if(e.key==='Escape') $('#overlay').innerHTML='';
+});
+
+const sw = (id,on,label) => `<button class="sw" id="${id}" role="switch" aria-checked="${on}" aria-label="${esc(label)}"></button>`;
+const kbds = str => str.split('+').map(k=>`<kbd>${esc(k)}</kbd>`).join('<span class="muted">+</span>');
+const TABS = [['atalho','Atalho'],['regras','Regras'],['celular','Celular'],['meet','Meet'],['geral','Geral']];
+const scErr = () => ui.localErr || S.sc_err;
+
+function renderNav(){
+  $('#snav').innerHTML = TABS.map(([k,l])=>{
+    let bd='';
+    if(k==='celular') bd = S.phone_on?`<span class="bd">on</span>`:'';
+    if(k==='meet') bd = `<span class="bd">${S.browsers.length}</span>`;
+    if(k==='atalho' && scErr()) bd = `<span class="bd w">!</span>`;
+    return `<button role="tab" data-tab="${k}" aria-selected="${ui.tab===k}">${l}${bd}</button>`;
+  }).join('');
+  $('#snav').querySelectorAll('button').forEach(b=>b.onclick=()=>{ if(ui.recording) stopRec(); ui.tab=b.dataset.tab; render(); });
+}
+function paneAtalho(){
+  return `<h2>Atalho</h2><p class="lead">Funciona em qualquer janela, inclusive com os Ajustes fechados. Muta a fonte padrão do PipeWire, então todo app de chamada escuta silêncio.</p>
+  <div class="grp">
+    <div class="r"><div class="lb">Mutar e desmutar<span>Também pelo menu da tray e pelo celular</span></div>
+      <div class="combo ${ui.recording?'rec':''}" id="combo">${ui.recording?'Pressione as teclas…':kbds(S.shortcut)}</div>
+      <button class="btn" id="rec">${ui.recording?'Cancelar':'Trocar'}</button>
+      ${S.shortcut!=='Ctrl+Shift+M'?`<button class="btn sm" id="scReset">Padrão</button>`:''}
+    </div>
+    ${ui.recording?`<div class="r"><span class="note">Enquanto grava, o atalho atual fica desregistrado para o X11 não engolir as teclas. Esc cancela.</span></div>`:''}
+    ${scErr()?`<div class="r"><span class="note err">${esc(scErr())}</span></div>`:''}
+  </div>
+  <div class="sec">Mapeado para o futuro</div>
+  <div class="grp fut">
+    ${[['Segurar para falar','Ctrl+Space'],['Segurar para tossir','Ctrl+Shift+Space'],['Câmera on/off (Meet)','Ctrl+Shift+O'],['Sair da chamada (Meet)','Ctrl+Shift+H']]
+      .map(([l,k])=>`<div class="r"><div class="lb">${l}</div><div class="combo">${kbds(k)}</div><span class="soon">em breve</span></div>`).join('')}
+  </div>`;
+}
+function paneRegras(){
+  return `<h2>Regras</h2><p class="lead">Regras só mutam. Nunca abrem o microfone sozinhas.</p>
+  <div class="grp">
+    <div class="r"><div class="lb">Mutar ao travar a tela<span class="mono">org.gnome.ScreenSaver · ActiveChanged</span></div>
+      <button class="btn sm" id="simLock">Travar agora</button>${sw('swLock',S.lock_rule,'Mutar ao travar a tela')}</div>
+    <div class="r"><div class="lb">Mutar ao abrir um destes apps<span>Dispara quando o app aparece, não enquanto ele fica aberto</span></div>${sw('swApp',S.app_rule,'Mutar ao abrir um app')}</div>
+    <div class="r" style="display:grid;gap:8px">
+      <div class="chips">${S.apps.map(a=>`<span class="chip">${esc(a)}<button data-rm="${esc(a)}" aria-label="Remover ${esc(a)}">✕</button></span>`).join('')||'<span class="muted">Nenhum app na lista.</span>'}</div>
+      <form id="addApp" style="display:flex;gap:6px"><input class="in" id="appName" placeholder="nome do executável, ex.: discord" autocomplete="off" style="flex:1"><button class="btn">Adicionar</button></form>
+    </div>
+  </div>
+  ${S.apps.length?`<div class="sec">Processos agora</div>
+  <div class="procs">${S.apps.map(p=>`<span class="proc" aria-pressed="${S.running.includes(p)}" title="${S.running.includes(p)?'rodando':'fechado'}"><i></i>${esc(p)}${S.app_rule?'<span class="m">regra</span>':''}</span>`).join('')}</div>`:''}`;
+}
+function paneCelular(){
+  const ifs = S.ifaces.map(i=>`<option value="${esc(i.name)}" ${i.name===S.iface?'selected':''} ${i.ip?'':'disabled'}>${esc(i.name)} · ${i.ip?esc(i.ip):'desconectada'}</option>`).join('');
+  const ufw = S.ufw
+    ? `<span class="note wn">ufw ativo: libere a porta com <span class="mono">sudo ufw allow ${S.port}/tcp</span></span>`
+    : `<span class="note okn">ufw inativo: nenhuma regra de firewall necessária.</span>`;
+  return `<h2>Celular</h2><p class="lead">O celular vira um controle remoto pela Wi-Fi. Sem app e sem servidor externo: o navegador do celular fala direto com este PC.</p>
+  <div class="grp"><div class="r"><div class="lb">Controle pelo celular<span>${S.phone_on&&S.ip?`Ouvindo em <span class="mono">${esc(S.ip)}:${S.port}</span>`:'Servidor desligado'}</span></div>${sw('swPhone',S.phone_on,'Controle pelo celular')}</div>
+    ${S.phone_err?`<div class="r"><span class="note err">${esc(S.phone_err)}</span></div>`:''}</div>
+  ${S.phone_on?`
+  ${S.url?`<div class="grp"><div class="r qrbox">
+    <div class="qr" aria-label="QR code para ${esc(S.url)}">${S.qr}</div>
+    <div style="display:grid;gap:6px;min-width:0">
+      <span class="muted">1. Aponte a câmera do celular para o QR</span>
+      <span class="muted">2. Digite no celular o código:</span>
+      <span class="code">${esc(S.code)}</span>
+      <span class="note">${S.fails?`${S.fails} tentativa${S.fails>1?'s':''} errada${S.fails>1?'s':''} · troca após 5`:'O código troca a cada pareamento'}</span>
+      <div><button class="btn sm" id="regen">Gerar novo código</button></div>
+    </div>
+  </div></div>`:''}
+  <div class="sec">Dispositivos pareados</div>
+  <div class="grp">${S.devices.length?S.devices.map(d=>`<div class="r dev"><span class="ph">${ICON.phone}</span><div class="lb">${esc(d.name)}<span>${esc(d.when)}</span></div><button class="btn sm danger" data-rev="${esc(d.id)}">Revogar</button></div>`).join(''):'<div class="r"><span class="muted">Nenhum celular pareado.</span></div>'}</div>
+  <div class="sec">Rede</div>
+  <div class="grp">
+    <div class="r"><div class="lb">Interface<span>Ocultas: ${esc(S.hidden||'nenhuma')}</span></div><select class="in" id="iface">${ifs}</select></div>
+    <div class="r"><div class="lb">Porta<span>Fixa, para o QR continuar valendo</span></div><span class="mono">${S.port}</span></div>
+    <div class="r">${ufw}</div>
+  </div>`:''}`;
+}
+function paneMeet(){
+  const left = S.pair_left;
+  const mm = `${Math.floor(left/60)}:${String(left%60).padStart(2,'0')}`;
+  return `<h2>Google Meet</h2><p class="lead">Sem a extensão, o atalho já silencia o Meet. A extensão só faz o ícone de microfone do Meet acompanhar o Muttei.</p>
+  <div class="grp">
+    ${S.browsers.length?S.browsers.map(([b,live])=>`<div class="r"><div class="lb">${esc(b.name)}<span class="mono">chrome-extension://${esc(b.id.slice(0,12))}…</span></div>${live?'<span class="note okn">● conectado</span>':'<span class="note">○ desconectado</span>'}</div>`).join('')
+      :`<div class="r"><div class="lb">Nenhum navegador conectado<span>Carregue a pasta <span class="mono">extension/</span> em <span class="mono">chrome://extensions</span> (modo desenvolvedor) e abra o Meet</span></div></div>`}
+    ${S.browsers.length?`<div class="r"><div class="lb">Conectar outro navegador<span>Abra a extensão no outro navegador em até 2 minutos</span></div>
+      ${left?`<span class="mono" style="color:var(--accent)">aguardando · ${mm}</span><button class="btn sm" id="pairCancel">Cancelar</button>`:`<button class="btn" id="pairBtn">Conectar outro navegador</button>`}
+    </div>`:''}
+  </div>
+  <div class="sec">Como funciona</div>
+  <div class="grp"><div class="r"><span class="note">Servidor local em <span class="mono">127.0.0.1</span>, só aceita origem <span class="mono">chrome-extension://</span>. A sincronização é de mão única: mutar pelo botão do próprio Meet não muda o microfone do sistema.</span></div></div>`;
+}
+function paneGeral(){
+  return `<h2>Geral</h2>
+  <div class="grp">
+    <div class="r"><div class="lb">Som ao mutar e desmutar<span>Toca só na saída de áudio, nunca entra no microfone</span></div><button class="btn sm" id="testSnd">Testar</button>${sw('swSound',S.sound,'Som')}</div>
+    <div class="r"><div class="lb">Pílula no topo da tela<span>"No ar" ou "Mudo" por 1,5 s a cada troca</span></div>${sw('swPill',S.pill,'Pílula')}</div>
+    <div class="r"><div class="lb">Indicador fixo<span>Ponto vermelho enquanto estiver mudo. Aparece em capturas de tela no X11.</span></div>
+      <select class="in" id="corner" ${S.dot?'':'disabled'}><option value="tr">canto superior direito</option><option value="tl">canto superior esquerdo</option><option value="br">canto inferior direito</option><option value="bl">canto inferior esquerdo</option></select>${sw('swDot',S.dot,'Indicador fixo')}</div>
+    <div class="r"><div class="lb">Iniciar com o sistema<span class="mono">~/.config/autostart/Muttei.desktop</span></div>${sw('swAuto',S.autostart,'Iniciar com o sistema')}</div>
+    <div class="r"><div class="lb">Introdução<span>A tela que aparece na primeira execução</span></div><button class="btn sm" id="introBtn">Mostrar</button></div>
+  </div>`;
+}
+function renderPane(){
+  const focusId = document.activeElement && document.activeElement.id;
+  const draft = $('#appName') ? $('#appName').value : '';
+  const P = {atalho:paneAtalho, regras:paneRegras, celular:paneCelular, meet:paneMeet, geral:paneGeral}[ui.tab];
+  const sp = $('#spane'); sp.innerHTML = P();
+  const on = (id,f)=>{ const el=sp.querySelector('#'+id); if(el) el.onclick=f; };
+  on('rec', ()=> ui.recording ? stopRec() : startRec());
+  on('scReset', ()=>invoke('reset_shortcut').catch(()=>{}));
+  on('swLock', ()=>patch({lock_rule:!S.lock_rule}));
+  on('swApp', ()=>patch({app_rule:!S.app_rule}));
+  on('simLock', ()=>invoke('lock_now'));
+  sp.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>patch({apps:S.apps.filter(a=>a!==b.dataset.rm)}));
+  const f = sp.querySelector('#addApp');
+  if(f){
+    $('#appName').value = draft;
+    f.onsubmit = e=>{ e.preventDefault(); const v=$('#appName').value.trim().toLowerCase().replace(/[^a-z0-9._-]/g,''); if(!v) return;
+      $('#appName').value=''; if(!S.apps.includes(v)) patch({apps:[...S.apps, v]}); };
+  }
+  on('swPhone', ()=>patch({phone_on:!S.phone_on}));
+  on('regen', ()=>invoke('regen_code'));
+  sp.querySelectorAll('[data-rev]').forEach(b=>b.onclick=()=>invoke('revoke',{id:b.dataset.rev}));
+  const ifs = sp.querySelector('#iface'); if(ifs) ifs.onchange=()=>patch({iface:ifs.value});
+  on('pairBtn', ()=>invoke('pair_window',{open:true}));
+  on('pairCancel', ()=>invoke('pair_window',{open:false}));
+  on('testSnd', ()=>invoke('test_sound'));
+  on('swSound', ()=>patch({sound:!S.sound}));
+  on('swPill', ()=>patch({pill:!S.pill}));
+  on('swDot', ()=>patch({dot:!S.dot}));
+  on('swAuto', ()=>patch({autostart:!S.autostart}));
+  on('introBtn', intro);
+  const c = sp.querySelector('#corner'); if(c){ c.value=S.dot_corner; c.onchange=()=>patch({dot_corner:c.value}); }
+  if(focusId){ const el = document.getElementById(focusId); if(el) el.focus(); }
+}
+function render(){ if(!S) return; renderNav(); renderPane(); }
+
+function toast(msg){ const t=document.createElement('div'); t.className='toast'; t.textContent=msg; $('#toasts').appendChild(t); setTimeout(()=>t.remove(),2800); }
+function dialog(html, onClose){
+  $('#overlay').innerHTML = `<div class="scrim" id="scrim"><div class="dlg" role="dialog" aria-modal="true">${html}</div></div>`;
+  $('#scrim').onclick = e=>{ if(e.target.id==='scrim' || e.target.dataset.close!==undefined){ $('#overlay').innerHTML=''; onClose&&onClose(); } };
+}
+function intro(){
+  dialog(`<h3>Bem-vindo ao Muttei</h3><p>Um botão para o seu microfone, em qualquer app.</p>
+    <div class="steps">
+      <div><b>1</b><span>Aperte <kbd>${esc(S.shortcut)}</kbd> para mutar. Aperte de novo para voltar ao ar.</span></div>
+      <div><b>2</b><span>A pílula no topo, o ícone vermelho na tray e o ponto no canto mostram quando você está mudo.</span></div>
+      <div><b>3</b><span>Funciona no Meet, Zoom, Discord, Slack e qualquer app que use a fonte padrão do PipeWire.</span></div>
+      <div><b>4</b><span>Se o ícone sumir, ele fica em Ajustes do GNOME &gt; Extensões &gt; AppIndicator.</span></div>
+    </div>
+    <div class="acts"><button class="btn pri" data-close>Começar</button></div>`, ()=>{ if(!S.intro_seen) patch({intro_seen:true}); });
+}
+
+$('#close').onclick = ()=>{ if(ui.recording) stopRec(); invoke('hide_settings'); };
+listen('state', ({payload})=>{ S=payload; render(); });
+listen('toast', ({payload})=>toast(payload));
+invoke('get_state').then(s=>{ S=s; render(); if(!S.intro_seen) intro(); });
+</script>
+</body>
+</html>

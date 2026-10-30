@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><link rel="stylesheet" href="style.css"></head>
+<body data-c="tr">
+<div class="dot" id="dot" hidden title="Indicador fixo: microfone mudo"></div>
+<script>
+const show = s => { document.body.dataset.c = s.dot_corner; document.getElementById('dot').hidden = !(s.muted && s.dot); };
+window.__TAURI__.event.listen('state', ({payload}) => show(payload));
+window.__TAURI__.core.invoke('get_state').then(show);
+requestAnimationFrame(() => window.__TAURI__.core.invoke('dot_ready'));
+</script>
+</body>
+</html>
