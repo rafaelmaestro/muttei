@@ -137,7 +137,7 @@ O `.deb` já puxa as dependências de execução: `wireplumber`, `pipewire-bin`,
 sudo apt install libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev build-essential pkg-config
 cargo install tauri-cli --version '^2'
 ./scripts/package-deb.sh
-sudo apt install ./src-tauri/target/release/bundle/deb/Muttei_0.2.0_amd64.deb
+sudo apt install ./src-tauri/target/release/bundle/deb/Muttei_0.3.0_amd64.deb
 ```
 
 **Para desenvolver:**
@@ -162,4 +162,4 @@ Com o Muttei aberto, a extensão se conecta sozinha. A primeira é aprovada auto
 
 Para publicar no Edge Add-ons ([partner.microsoft.com](https://partner.microsoft.com/dashboard/microsoftedge/overview)), use o mesmo zip e os mesmos textos. Lá a conta é gratuita.
 
-**Para publicar uma versão:** suba a versão em `src-tauri/tauri.conf.json` e envie uma tag `v*`, por exemplo `git tag v0.2.0 && git push --tags`. O workflow `Release` roda os testes no Linux e no Windows, gera o `.deb` e o `.exe` e cria a release com os dois.
+**Para publicar uma versão:** suba a versão em `src-tauri/tauri.conf.json` e envie uma tag `v*`, por exemplo `git tag v0.3.0 && git push --tags`. O workflow `Release` roda os testes no Linux e no Windows, gera o `.deb` e o `.exe` e cria a release com os dois.
