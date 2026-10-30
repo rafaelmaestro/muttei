@@ -87,9 +87,10 @@ https://claude.ai/artifact/CaqrnFcSV88Hp2UaVBwaWB (v1, 30/10)
 - [x] `ptt.rs`: restaura o estado anterior, ignora autorepeat, toggle durante o hold muda o que volta · 5 testes; E2E com xdotool keydown/keyup
 - [x] Spike: eventos Pressed/Released do X11 segurando a tecla · sem debounce: o global-hotkey liga DETECTABLE_AUTO_REPEAT do XKB e deduplica; Released vem ao soltar a tecla principal
 - [x] Pílula "No ar · segurando" e retorno ao soltar
-- [ ] Servidor: `Cmd` para a extensão, `result` vira pílula, aviso "Meet não conectado"
-- [ ] `content.js`: câmera, mão e sair por aria-label pt/en; "Botão não encontrado no Meet"
-- [ ] Celular: botões câmera, mão e sair, apagados sem Meet; vibra no ack
+- [x] Servidor: `Cmd` para a extensão, `result` vira pílula, aviso "Meet não conectado" · E2E com extensão e celular simulados + atalho global
+- [x] `content.js`: câmera, mão e sair por aria-label pt/en; "Botão não encontrado no Meet" · também informa em chamada/câmera/mão para o celular
+- [x] Celular: botões câmera, mão e sair, apagados sem Meet; vibra no ack · comando inválido recusado
+- [x] Janelas de pílula/ponto não aceitam foco (o GNOME mostrava "Muttei pill-1 is ready")
 - [ ] Manual: câmera/mão/sair num Meet real, pelo atalho e pelo celular
 
 ## Fora do escopo

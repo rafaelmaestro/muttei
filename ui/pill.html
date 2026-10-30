@@ -6,10 +6,10 @@
 <script>
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 let t;
-window.__TAURI__.event.listen('pill', ({payload:{kind,text,sub}})=>{
+window.__TAURI__.event.listen('pill', ({payload:{kind,text,sub,icon}})=>{
   const p = document.getElementById('pill');
   p.className = 'pill show ' + kind;
-  p.innerHTML = `<span class="ic">${kind==='on'?ICON.mic:kind==='off'?ICON.micOff:ICON.warn}</span>${esc(text)}${sub?` <small>${esc(sub)}</small>`:''}`;
+  p.innerHTML = `<span class="ic">${ICON[icon || {on:'mic', off:'micOff', warn:'warn', hand:'hand'}[kind]]}</span>${esc(text)}${sub?` <small>${esc(sub)}</small>`:''}`;
   clearTimeout(t); t = setTimeout(()=>p.classList.remove('show'),1500);
 });
 </script>

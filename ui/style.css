@@ -94,6 +94,7 @@ input.in:focus,select.in:focus{border-color:var(--accent)}
 .pill.on .ic{background:var(--ok-soft);color:var(--ok)}
 .pill.off .ic{background:var(--bad-soft);color:var(--bad)}
 .pill.warn .ic{background:rgba(255,184,108,.15);color:var(--orange)}
+.pill.hand .ic{background:rgba(241,250,140,.14);color:var(--yellow)}
 .pill .ic svg{width:13px;height:13px}
 .pill small{font:400 11px var(--mono);color:var(--muted)}
 .dot{position:absolute;width:14px;height:14px;border-radius:50%;background:var(--bad);box-shadow:0 0 0 3px rgba(255,85,85,.25),0 0 14px rgba(255,85,85,.6);animation:breathe 2.4s ease-in-out infinite}

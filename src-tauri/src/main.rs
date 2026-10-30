@@ -32,6 +32,17 @@ const TOP: f64 = 40.0;
 pub enum Event {
     Muted(bool),
     Devices,
+    Cmd(String),
+    Meet,
+}
+
+pub const MEET_CMDS: &[&str] = &["camera", "hand", "leave"];
+
+#[derive(Serialize, Clone, Copy, PartialEq, Debug)]
+pub struct MeetStatus {
+    pub in_call: bool,
+    pub cam: Option<bool>,
+    pub hand: bool,
 }
 
 struct Tray {
@@ -58,6 +69,8 @@ pub struct Core {
     running: Mutex<HashSet<String>>,
     tray: Mutex<Option<Tray>>,
     hold: Mutex<ptt::Hold>,
+    meet: Mutex<Option<MeetStatus>>,
+    cmd_src: Mutex<String>,
 }
 
 #[derive(Serialize, Clone)]
@@ -187,10 +200,14 @@ impl Core {
     }
 
     fn pill(&self, kind: &str, text: &str, sub: &str) {
+        self.pill_icon(kind, text, sub, "");
+    }
+
+    fn pill_icon(&self, kind: &str, text: &str, sub: &str, icon: &str) {
         if kind != "warn" && !self.s.lock().unwrap().pill {
             return;
         }
-        let payload = serde_json::json!({"kind": kind, "text": text, "sub": sub});
+        let payload = serde_json::json!({"kind": kind, "text": text, "sub": sub, "icon": icon});
         for label in place_pills(&self.app) {
             let _ = self.app.emit_to(label.as_str(), "pill", payload.clone());
         }
@@ -327,12 +344,58 @@ impl Core {
     }
 
     pub fn meet_live(&self, id: &str, on: bool) {
-        {
+        let any = {
             let mut l = self.live.lock().unwrap();
             let n = l.entry(id.to_string()).or_insert(0);
             *n = if on { *n + 1 } else { n.saturating_sub(1) };
+            l.values().any(|n| *n > 0)
+        };
+        if !any {
+            self.set_meet_status(None);
         }
         self.emit_state();
+    }
+
+    pub fn meet_status(&self) -> Option<MeetStatus> {
+        *self.meet.lock().unwrap()
+    }
+
+    pub fn set_meet_status(&self, st: Option<MeetStatus>) {
+        let changed = {
+            let mut m = self.meet.lock().unwrap();
+            let changed = *m != st;
+            *m = st;
+            changed
+        };
+        if changed {
+            let _ = self.tx.send(Event::Meet);
+        }
+    }
+
+    pub fn meet_cmd(&self, cmd: &str, src: &str) -> bool {
+        match self.meet_status() {
+            None => self.pill("warn", "Meet não conectado", src),
+            Some(st) if !st.in_call => self.pill("warn", "Botão não encontrado no Meet", src),
+            Some(_) => {
+                *self.cmd_src.lock().unwrap() = src.into();
+                let _ = self.tx.send(Event::Cmd(cmd.into()));
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn meet_result(&self, cmd: &str, ok: bool, on: Option<bool>) {
+        let src = self.cmd_src.lock().unwrap().clone();
+        if !ok {
+            return self.pill("warn", "Botão não encontrado no Meet", &src);
+        }
+        match (cmd, on) {
+            ("camera", Some(on)) => self.pill_icon(if on { "on" } else { "off" }, if on { "Câmera ligada" } else { "Câmera desligada" }, &src, if on { "cam" } else { "camOff" }),
+            ("hand", Some(up)) => self.pill_icon("hand", if up { "Mão levantada" } else { "Mão abaixada" }, &src, "hand"),
+            ("leave", _) => self.pill_icon("off", "Saiu da chamada", &src, "leave"),
+            _ => {}
+        }
     }
 
     fn restart_phone(self: &Arc<Self>) {
@@ -381,6 +444,9 @@ impl Core {
             }
             "ptt" => self.hold_key("ptt", state),
             "ptc" => self.hold_key("ptc", state),
+            cmd if state == ShortcutState::Pressed && MEET_CMDS.contains(&cmd) => {
+                self.meet_cmd(cmd, "atalho");
+            }
             _ => {}
         }
     }
@@ -483,12 +549,15 @@ fn overlay(app: &AppHandle, label: &str, w: f64, h: f64, page: &str) -> tauri::R
         .skip_taskbar(true)
         .resizable(false)
         .focused(false)
+        .focusable(false)
         .visible(true)
         .title(format!("Muttei {label}"))
         .min_inner_size(w, h)
         .max_inner_size(w, h)
         .build()?;
     let _ = win.set_ignore_cursor_events(true);
+    // GNOME flags an unfocused new window as "is ready" and shows a notification; clear it
+    let _ = win.request_user_attention(None);
     Ok(win)
 }
 
@@ -656,6 +725,8 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
         running: Mutex::new(HashSet::new()),
         tray: Mutex::new(None),
         hold: Mutex::new(ptt::Hold::default()),
+        meet: Mutex::new(None),
+        cmd_src: Mutex::new(String::new()),
     });
     app.manage(core.clone());
 

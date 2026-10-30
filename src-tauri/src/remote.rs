@@ -1,4 +1,4 @@
-use crate::{Core, Event};
+use crate::{Core, Event, MeetStatus, MEET_CMDS};
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::State;
 use axum::http::HeaderMap;
@@ -135,6 +135,10 @@ impl Pairing {
     }
 }
 
+fn phone_state(core: &Core, host: &str) -> Value {
+    json!({"t":"state","muted":core.muted(),"host":host,"meet":core.meet_status()})
+}
+
 fn device_name(ua: &str) -> String {
     let ua = ua.to_lowercase();
     if ua.contains("iphone") { "iPhone" } else if ua.contains("ipad") { "iPad" } else if ua.contains("android") { "Android" } else { "Navegador" }.into()
@@ -179,7 +183,7 @@ async fn phone_loop(mut ws: WebSocket, core: Arc<Core>, ua: String) {
                 match v["t"].as_str().unwrap_or("") {
                     "pair" => {
                         let reply = match core.pair(v["code"].as_str().unwrap_or(""), &device_name(&ua)) {
-                            Ok(tok) => { authed = Some(tok.clone()); json!({"t":"paired","token":tok,"muted":core.muted(),"host":host}) }
+                            Ok(tok) => { authed = Some(tok.clone()); json!({"t":"paired","token":tok,"muted":core.muted(),"host":host,"meet":core.meet_status()}) }
                             Err(PairResult::Regenerated) => json!({"t":"regen"}),
                             Err(PairResult::Bad { left }) => json!({"t":"bad","left":left}),
                             Err(PairResult::Locked { secs }) => json!({"t":"locked","secs":secs}),
@@ -187,14 +191,19 @@ async fn phone_loop(mut ws: WebSocket, core: Arc<Core>, ua: String) {
                         };
                         if !send(&mut ws, reply).await { break }
                     }
-                    "hello" | "toggle" if core.valid_token(&tok) => {
+                    "hello" | "toggle" | "cmd" if core.valid_token(&tok) => {
                         authed = Some(tok);
-                        if v["t"] == "toggle" {
-                            let m = core.toggle("celular");
-                            if !send(&mut ws, json!({"t":"ack","muted":m})).await { break }
-                        } else if !send(&mut ws, json!({"t":"state","muted":core.muted(),"host":host})).await { break }
+                        let reply = match v["t"].as_str() {
+                            Some("toggle") => json!({"t":"ack","muted":core.toggle("celular")}),
+                            Some("cmd") => {
+                                let cmd = v["cmd"].as_str().filter(|c| MEET_CMDS.contains(c)).unwrap_or("");
+                                json!({"t":"ack","muted":core.muted(),"cmd":cmd,"ok":!cmd.is_empty() && core.meet_cmd(cmd, "celular")})
+                            }
+                            _ => phone_state(&core, &host),
+                        };
+                        if !send(&mut ws, reply).await { break }
                     }
-                    "hello" | "toggle" => {
+                    "hello" | "toggle" | "cmd" => {
                         authed = None;
                         if !send(&mut ws, json!({"t":"revoked"})).await { break }
                     }
@@ -205,9 +214,9 @@ async fn phone_loop(mut ws: WebSocket, core: Arc<Core>, ua: String) {
                 let Ok(e) = e else { continue };
                 let Some(tok) = authed.clone() else { continue };
                 let msg = match e {
-                    Event::Muted(m) => json!({"t":"state","muted":m,"host":host}),
+                    Event::Muted(_) | Event::Meet => phone_state(&core, &host),
                     Event::Devices if !core.valid_token(&tok) => { authed = None; json!({"t":"revoked"}) }
-                    Event::Devices => continue,
+                    Event::Devices | Event::Cmd(_) => continue,
                 };
                 if !send(&mut ws, msg).await { break }
             }
@@ -257,13 +266,22 @@ async fn meet_loop(mut ws: WebSocket, core: Arc<Core>, id: String) {
                         if !send(&mut ws, json!({"t":"state","muted":core.muted()})).await { break }
                     }
                     "ping" if !send(&mut ws, json!({"t":"pong"})).await => break,
+                    "status" if live => core.set_meet_status(Some(MeetStatus {
+                        in_call: v["in_call"].as_bool().unwrap_or(false),
+                        cam: v["cam"].as_bool(),
+                        hand: v["hand"].as_bool().unwrap_or(false),
+                    })),
+                    "result" if live => core.meet_result(v["cmd"].as_str().unwrap_or(""), v["ok"].as_bool().unwrap_or(false), v["on"].as_bool()),
                     _ => {}
                 }
             }
             e = rx.recv() => {
-                if let (true, Ok(Event::Muted(m))) = (live, e) {
-                    if !send(&mut ws, json!({"t":"state","muted":m})).await { break }
-                }
+                let msg = match (live, e) {
+                    (true, Ok(Event::Muted(m))) => json!({"t":"state","muted":m}),
+                    (true, Ok(Event::Cmd(c))) => json!({"t":"cmd","cmd":c}),
+                    _ => continue,
+                };
+                if !send(&mut ws, msg).await { break }
             }
         }
     }
