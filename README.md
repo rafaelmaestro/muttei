@@ -43,7 +43,7 @@ O microfone é do sistema, não do app da chamada. Então o botão também dever
 ## O que ele faz
 
 ### Um atalho para tudo
-`Ctrl+Shift+M` funciona com o Meet, o Zoom, o Discord, o Slack, o navegador e o que mais usar o microfone, porque age no dispositivo e não no app. Nos Ajustes você troca a tecla e define atalhos opcionais para segurar para falar e segurar para tossir. Os atalhos novos começam sem tecla. Por padrão o Muttei muta o microfone padrão do sistema. Em Ajustes > Geral dá para fixar outro, como o headset. Se ele for desconectado, o app volta para o padrão até o microfone voltar.
+`Ctrl+Shift+M` funciona com o Meet, o Zoom, o Discord, o Slack, o navegador e o que mais usar o microfone, porque age no dispositivo e não no app. Nos Ajustes você troca a tecla e define atalhos opcionais para segurar para falar e segurar para tossir. Os atalhos novos começam sem tecla. O atalho muta sempre o microfone em uso. Em Ajustes > Geral, ou pelo celular, você troca qual microfone está em uso, por exemplo do headset para o da webcam. Os apps que usam o microfone padrão passam para ele, e o novo mic mantém o estado: se você estava mudo, continua mudo.
 
 <p align="center"><img src="docs/shots/ajustes.png" alt="Aba Atalho dos Ajustes do Muttei" width="640"></p>
 
@@ -56,9 +56,9 @@ A pílula aparece em todos os monitores a cada mudança. Enquanto o microfone es
 O Muttei muta ao travar a tela, ao entrar numa chamada do Meet e quando abre um app da sua lista, por exemplo o `zoom`. As regras só fecham o microfone, nunca abrem.
 
 ### O celular vira o botão
-Se você levantou da mesa, abra a página do Muttei no celular, na mesma rede Wi-Fi. Não precisa instalar nada. O pareamento é por QR e por um código de 4 dígitos, e cada aparelho pode ser revogado nos Ajustes. Com uma chamada do Meet aberta, aparecem também os botões de câmera, mão e sair. Pelo celular também dá para trocar o microfone que o PC muta, por exemplo do headset para o mic da webcam.
+Se você levantou da mesa, abra a página do Muttei no celular, na mesma rede Wi-Fi. Não precisa instalar nada. O pareamento é por QR e por um código de 4 dígitos, e cada aparelho pode ser revogado nos Ajustes. Com uma chamada do Meet aberta, aparecem também os botões de câmera, mão e sair. Pelo celular também dá para trocar o microfone em uso no PC.
 
-<p align="center"><img src="docs/shots/celular.png" alt="Página do celular com o microfone mudo, os botões de câmera, mão e sair e o seletor de microfone do PC" width="240"></p>
+<p align="center"><img src="docs/shots/celular.png" alt="Página do celular com o microfone mudo, os botões de câmera, mão e sair e o seletor do microfone em uso" width="240"></p>
 
 ### Google Meet de verdade
 Com a extensão em [`extension/`](extension/), o ícone de microfone do Meet acompanha o estado do Muttei. A extensão também executa câmera, levantar a mão e sair da chamada, pelo atalho ou pelo celular.

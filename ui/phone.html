@@ -10,7 +10,7 @@
 @font-face{font-family:"IBM Plex Sans";font-weight:100 700;font-display:swap;src:url(/fonts/IBMPlexSans.woff2) format("woff2")}
 @font-face{font-family:"JetBrains Mono";font-weight:100 800;font-display:swap;src:url(/fonts/JetBrainsMono.woff2) format("woff2")}
 /* telas do celular do protótipo aprovado, em tela cheia */
-:root{--yellow:#f1fa8c;--orange:#ffb86c;--accent-soft:rgba(189,147,249,.16);--fg:#f8f8f2;--muted:#9a9dbb;--comment:#6272a4;--accent:#bd93f9;--ok:#50fa7b;--bad:#ff5555;--bad-soft:rgba(255,85,85,.14);--ok-soft:rgba(80,250,123,.12);
+:root{--yellow:#f1fa8c;--accent-soft:rgba(189,147,249,.16);--fg:#f8f8f2;--muted:#9a9dbb;--comment:#6272a4;--accent:#bd93f9;--ok:#50fa7b;--bad:#ff5555;--bad-soft:rgba(255,85,85,.14);--ok-soft:rgba(80,250,123,.12);
   --sans:"IBM Plex Sans",system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,monospace;color-scheme:dark}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%}
@@ -51,7 +51,6 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;paddin
 .pmic{width:100%;display:grid;grid-template-columns:auto 1fr;align-items:center;gap:4px 10px;padding:8px 10px;border-radius:12px;background:#1f2029;border:1px solid #44475a;text-align:left}
 .pmic label{font-size:11px;color:var(--muted)}
 .pmic select{min-width:0;font:500 13px var(--sans);color:var(--fg);background:#282a36;border:1px solid #44475a;border-radius:8px;padding:6px}
-.pmic .gone{grid-column:1/-1;font-size:11.5px;color:var(--orange)}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -73,7 +72,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const store = { get(){ try{ return localStorage.getItem('muttei-token'); }catch(e){ return null; } },
                 set(v){ try{ v ? localStorage.setItem('muttei-token', v) : localStorage.removeItem('muttei-token'); }catch(e){} } };
-const st = { screen: store.get() ? 'wait' : 'pin', err:'', muted:false, meet:null, host:location.hostname, token:store.get(), mics:[], mic:null, mic_desc:'', mic_gone:false };
+const st = { screen: store.get() ? 'wait' : 'pin', err:'', muted:false, meet:null, host:location.hostname, token:store.get(), mics:[] };
 let ws;
 
 function buzz(){ const b=$('#pbody'); b.classList.remove('buzz'); void b.offsetWidth; b.classList.add('buzz'); try{ navigator.vibrate && navigator.vibrate(40); }catch(e){} }
@@ -86,7 +85,7 @@ function connect(){
     const m = JSON.parse(e.data);
     if(m.host) st.host = m.host;
     if('meet' in m) st.meet = m.meet;
-    if('mics' in m) Object.assign(st, {mics:m.mics, mic:m.mic, mic_desc:m.mic_desc, mic_gone:m.mic_gone});
+    if('mics' in m) st.mics = m.mics;
     if(m.t==='paired'){ st.token=m.token; store.set(m.token); st.muted=m.muted; st.screen='ctl'; st.err=''; buzz(); send({t:'hello', token:m.token}); }
     else if(m.t==='bad'){ st.err=`Código errado. ${m.left} tentativa${m.left>1?'s':''} antes de gerar um novo.`; render(); const p=$('.pin'); p&&p.classList.add('bad'); return; }
     else if(m.t==='regen'){ st.err='5 tentativas erradas. O PC gerou um código novo; espere 1 minuto.'; }
@@ -141,15 +140,12 @@ function render(){
     $('#pMic').onclick = ()=>send({t:'toggle', token:st.token});
     pb.querySelectorAll('[data-pc]').forEach(b=>b.onclick=()=>send({t:'cmd', cmd:b.dataset.pc, token:st.token}));
     const pm = $('#pMicSel');
-    if(pm){ pm.value = st.mic || ''; pm.onchange = ()=>{ buzz(); send({t:'mic', name:pm.value||null, token:st.token}); }; }
+    if(pm){ pm.value = (st.mics.find(m=>m.def)||{}).name || ''; pm.onchange = ()=>{ buzz(); send({t:'mic', name:pm.value, token:st.token}); }; }
   }
 }
 function micPicker(){
   if(!st.mics.length) return '';
-  const def = st.mics.find(m=>m.def), opts = st.mic_gone ? [...st.mics, {name:st.mic, desc:st.mic_desc, gone:true}] : st.mics;
-  return `<div class="pmic"><label for="pMicSel">Mic do PC</label>
-    <select id="pMicSel"><option value="">Padrão do sistema${def?` · ${esc(def.desc)}`:''}</option>${opts.map(m=>`<option value="${esc(m.name)}">${esc(m.desc)}${m.gone?' (desconectado)':''}</option>`).join('')}</select>
-    ${st.mic_gone?'<span class="gone">Desconectado: usando o padrão até ele voltar.</span>':''}</div>`;
+  return `<div class="pmic"><label for="pMicSel">Mic em uso</label><select id="pMicSel">${st.mics.map(m=>`<option value="${esc(m.name)}">${esc(m.desc)}</option>`).join('')}</select></div>`;
 }
 render();
 connect();

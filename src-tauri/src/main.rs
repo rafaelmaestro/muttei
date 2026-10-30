@@ -82,7 +82,6 @@ pub struct Core {
     sc_errs: Mutex<BTreeMap<String, String>>,
     last: Mutex<String>,
     mics: Mutex<Vec<audio::Mic>>,
-    target: Mutex<String>,
     running: Mutex<HashSet<String>>,
     tray: Mutex<Option<Tray>>,
     hold: Mutex<ptt::Hold>,
@@ -106,14 +105,6 @@ struct HoldView {
 }
 
 #[derive(Serialize, Clone)]
-pub struct MicView {
-    mic: Option<String>,
-    mic_desc: String,
-    mics: Vec<audio::Mic>,
-    mic_gone: bool,
-}
-
-#[derive(Serialize, Clone)]
 struct Snapshot {
     muted: bool,
     holding: Option<HoldView>,
@@ -131,8 +122,7 @@ struct Snapshot {
     lock_rule: bool,
     app_rule: bool,
     meet_rule: bool,
-    #[serde(flatten)]
-    mic: MicView,
+    mics: Vec<audio::Mic>,
     apps: Vec<String>,
     running: Vec<String>,
     phone_on: bool,
@@ -176,51 +166,36 @@ impl Core {
         self.muted.load(Ordering::SeqCst)
     }
 
-    fn target(&self) -> String {
-        self.target.lock().unwrap().clone()
-    }
-
     fn refresh_mics(&self) {
         let mics = audio::mics();
-        let target = audio::target(&mics, self.settings().mic.as_deref());
-        let retarget = *self.target.lock().unwrap() != target;
         let relist = *self.mics.lock().unwrap() != mics;
         *self.mics.lock().unwrap() = mics;
-        if retarget {
-            let m = {
-                let _g = self.audio_lock.lock().unwrap();
-                *self.target.lock().unwrap() = target.clone();
-                audio::get_muted(&target).unwrap_or(false)
-            };
-            self.muted.store(m, Ordering::SeqCst);
-            *self.last.lock().unwrap() = audio::read_text(&target);
-            self.update_indicators();
-        }
-        if retarget || relist {
+        if relist {
             let _ = self.tx.send(Event::Mics);
             self.emit_state();
         }
     }
 
-    pub fn mic_view(&self) -> MicView {
-        let s = self.settings();
-        MicView {
-            mic_gone: s.mic.is_some() && *self.target.lock().unwrap() == audio::DEFAULT,
-            mic: s.mic,
-            mic_desc: s.mic_desc,
-            mics: self.mics.lock().unwrap().clone(),
-        }
+    pub fn mics(&self) -> Vec<audio::Mic> {
+        self.mics.lock().unwrap().clone()
     }
 
-    pub fn set_mic(self: &Arc<Self>, name: Option<&str>, src: &str) -> bool {
-        let mics = self.mics.lock().unwrap().clone();
-        let Some(m) = audio::pick(&mics, name) else { return false };
-        let desc = m.map(|m| m.desc.clone()).unwrap_or_default();
-        if self.update(serde_json::json!({"mic": name, "mic_desc": desc})).is_err() {
-            return false;
+    /// Makes `name` the system's default input. The new mic takes the current mute state,
+    /// so switching while muted never opens a microphone by surprise.
+    pub fn use_mic(&self, name: &str, src: &str) -> bool {
+        let Some(mic) = audio::pick(&self.mics(), name).cloned() else { return false };
+        if !mic.def {
+            let _g = self.audio_lock.lock().unwrap();
+            // by id, not @DEFAULT: the default may still point at the old mic for a moment
+            if !audio::set_default(&mic.id) || !audio::set_muted(&mic.id, self.muted()) {
+                drop(_g);
+                self.pill("warn", "O microfone não mudou", &mic.desc);
+                return false;
+            }
+            *self.last.lock().unwrap() = audio::default_text(&mic.id);
         }
-        let shown = if desc.is_empty() { "padrão do sistema".to_string() } else { desc };
-        self.pill_icon(if self.muted() { "off" } else { "on" }, "Microfone", &format!("{shown} · {src}"), "mic");
+        self.refresh_mics();
+        self.pill_icon(if self.muted() { "off" } else { "on" }, "Microfone em uso", &format!("{} · {src}", mic.desc), "mic");
         true
     }
 
@@ -261,7 +236,7 @@ impl Core {
             lock_rule: s.lock_rule,
             app_rule: s.app_rule,
             meet_rule: s.meet_rule,
-            mic: self.mic_view(),
+            mics: self.mics(),
             apps: s.apps.clone(),
             running: self.running.lock().unwrap().iter().filter(|r| s.apps.contains(r)).cloned().collect(),
             phone_on: s.phone_on,
@@ -338,7 +313,7 @@ impl Core {
             if m == self.muted() {
                 return m;
             }
-            let ok = audio::set_muted(&self.target(), m);
+            let ok = audio::set_muted(audio::DEFAULT, m);
             if ok {
                 self.muted.store(m, Ordering::SeqCst);
             }
@@ -348,7 +323,7 @@ impl Core {
             self.pill("warn", "O microfone não mudou", "wpctl falhou");
             return self.muted();
         }
-        *self.last.lock().unwrap() = audio::command_text(&self.target(), m);
+        *self.last.lock().unwrap() = audio::command_text(audio::DEFAULT, m);
         self.effects(m, src, true);
         m
     }
@@ -681,10 +656,6 @@ impl Core {
             let a = self.app.autolaunch();
             let _ = if new.autostart { a.enable() } else { a.disable() };
         }
-        if old.mic != new.mic {
-            self.refresh_mics();
-            let _ = self.tx.send(Event::Mics);
-        }
         if old.dot_corner != new.dot_corner {
             ensure_dots(&self.app, &new.dot_corner);
         }
@@ -810,6 +781,10 @@ fn update(core: C, patch: serde_json::Value) -> Result<(), String> {
     core.update(patch)
 }
 #[tauri::command]
+fn use_mic(core: C, name: String) -> bool {
+    core.use_mic(&name, "ajustes")
+}
+#[tauri::command]
 fn rec_start(core: C) {
     core.unregister_all();
 }
@@ -875,10 +850,9 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
     let first_run = !s.intro_seen;
     let (tx, _) = broadcast::channel(32);
     let mics = audio::mics();
-    let target = audio::target(&mics, s.mic.as_deref());
     let core = Arc::new(Core {
         app: app.clone(),
-        muted: AtomicBool::new(audio::get_muted(&target).unwrap_or(false)),
+        muted: AtomicBool::new(audio::get_muted(audio::DEFAULT).unwrap_or(false)),
         audio_lock: Mutex::new(()),
         locked_mute: AtomicBool::new(false),
         s: Mutex::new(s.clone()),
@@ -890,9 +864,8 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
         live: Mutex::new(HashMap::new()),
         pair_until: Mutex::new(None),
         sc_errs: Mutex::new(BTreeMap::new()),
-        last: Mutex::new(audio::read_text(&target)),
+        last: Mutex::new(audio::read_text(audio::DEFAULT)),
         mics: Mutex::new(mics),
-        target: Mutex::new(target),
         running: Mutex::new(HashSet::new()),
         tray: Mutex::new(None),
         hold: Mutex::new(ptt::Hold::default()),
@@ -964,7 +937,7 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
         // ponytail: polling wpctl; switch to pw-mon events if it ever shows up in CPU
         let changed = {
             let _g = c.audio_lock.lock().unwrap();
-            match audio::get_muted(&c.target()) {
+            match audio::get_muted(audio::DEFAULT) {
                 Some(m) if m != c.muted() => {
                     c.muted.store(m, Ordering::SeqCst);
                     Some(m)
@@ -1047,7 +1020,7 @@ fn main() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
         .invoke_handler(tauri::generate_handler![
-            get_state, toggle_mute, update, rec_start, rec_cancel, set_shortcut, clear_shortcut, reset_shortcut, regen_code, revoke, pair_window, test_sound, lock_now, hide_settings, dot_ready
+            get_state, toggle_mute, update, use_mic, rec_start, rec_cancel, set_shortcut, clear_shortcut, reset_shortcut, regen_code, revoke, pair_window, test_sound, lock_now, hide_settings, dot_ready
         ])
         .setup(|app| Ok(setup(app.handle())?))
         .build(tauri::generate_context!())

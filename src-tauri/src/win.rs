@@ -1,11 +1,11 @@
 use crate::audio::{Mic, DEFAULT};
 use std::collections::HashSet;
 use std::time::Duration;
-use windows::core::{Result, HSTRING, PWSTR};
+use windows::core::{interface, IUnknown, IUnknown_Vtbl, Result, GUID, HRESULT, HSTRING, PCWSTR, PWSTR};
 use windows::Win32::Devices::FunctionDiscovery::PKEY_Device_FriendlyName;
 use windows::Win32::Foundation::CloseHandle;
 use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
-use windows::Win32::Media::Audio::{eCapture, eConsole, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator, PlaySoundW, DEVICE_STATE_ACTIVE, SND_ALIAS, SND_ASYNC};
+use windows::Win32::Media::Audio::{eCapture, eCommunications, eConsole, eMultimedia, ERole, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator, PlaySoundW, DEVICE_STATE_ACTIVE, SND_ALIAS, SND_ASYNC};
 use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CoTaskMemFree, CLSCTX_ALL, COINIT_MULTITHREADED, STGM_READ};
 use windows::Win32::System::Diagnostics::ToolHelp::{CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS};
 use windows::Win32::System::Shutdown::LockWorkStation;
@@ -54,6 +54,32 @@ fn friendly(d: &IMMDevice) -> Option<String> {
     let store = unsafe { d.OpenPropertyStore(STGM_READ) }.ok()?;
     let v = unsafe { store.GetValue(&PKEY_Device_FriendlyName) }.ok()?;
     Some(v.to_string())
+}
+
+// IPolicyConfig is undocumented but stable since Vista; the Sound control panel uses it to set the default device.
+// Only the vtable slot of SetDefaultEndpoint matters, so the methods before it are placeholders.
+#[interface("f8679f50-850a-41cf-9c72-430f290290c8")]
+unsafe trait IPolicyConfig: IUnknown {
+    fn get_mix_format(&self) -> HRESULT;
+    fn get_device_format(&self) -> HRESULT;
+    fn reset_device_format(&self) -> HRESULT;
+    fn set_device_format(&self) -> HRESULT;
+    fn get_processing_period(&self) -> HRESULT;
+    fn set_processing_period(&self) -> HRESULT;
+    fn get_share_mode(&self) -> HRESULT;
+    fn set_share_mode(&self) -> HRESULT;
+    fn get_property_value(&self) -> HRESULT;
+    fn set_property_value(&self) -> HRESULT;
+    fn set_default_endpoint(&self, id: PCWSTR, role: ERole) -> HRESULT;
+}
+
+const POLICY_CONFIG_CLIENT: GUID = GUID::from_u128(0x870af99c_171d_4f9e_af0d_e63df40c2bc9);
+
+pub fn set_default(id: &str) -> bool {
+    let _ = enumerator();
+    let Ok(pc) = (unsafe { CoCreateInstance::<_, IPolicyConfig>(&POLICY_CONFIG_CLIENT, None, CLSCTX_ALL) }) else { return false };
+    let id = HSTRING::from(id);
+    [eConsole, eMultimedia, eCommunications].into_iter().all(|role| unsafe { pc.set_default_endpoint(PCWSTR(id.as_ptr()), role) }.is_ok())
 }
 
 pub fn mics() -> Vec<Mic> {

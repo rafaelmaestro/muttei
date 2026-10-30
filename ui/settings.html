@@ -183,11 +183,10 @@ function paneMeet(){
   <div class="grp"><div class="r"><span class="note">Servidor local em <span class="mono">127.0.0.1</span>, só aceita origem <span class="mono">chrome-extension://</span>. A sincronização é de mão única: mutar pelo botão do próprio Meet não muda o microfone do sistema.</span></div></div>`;
 }
 function paneGeral(){
-  const def = S.mics.find(m=>m.def), opts = S.mic_gone ? [...S.mics, {name:S.mic, desc:S.mic_desc, gone:true}] : S.mics;
   return `<h2>Geral</h2>
   <div class="grp">
-    <div class="r"><div class="lb">Microfone<span>${S.mic_gone?`<span style="color:var(--orange)">${esc(S.mic_desc)} está desconectado. Usando o padrão até ele voltar.</span>`:'O atalho, as regras e o celular mutam este microfone'}</span></div>
-      <select class="in" id="micSel"><option value="">Padrão do sistema${def?` · ${esc(def.desc)}`:''}</option>${opts.map(m=>`<option value="${esc(m.name)}">${esc(m.desc)}${m.gone?' (desconectado)':''}</option>`).join('')}</select></div>
+    <div class="r"><div class="lb">Microfone em uso<span>Troca o microfone padrão do sistema. Os apps que usam o padrão passam para ele, e o atalho muta sempre o que está em uso.</span></div>
+      <select class="in" id="micSel">${S.mics.map(m=>`<option value="${esc(m.name)}">${esc(m.desc)}</option>`).join('')}</select></div>
     <div class="r"><div class="lb">Som ao mutar e desmutar<span>Toca só na saída de áudio, nunca entra no microfone</span></div><button class="btn sm" id="testSnd">Testar</button>${sw('swSound',S.sound,'Som')}</div>
     <div class="r"><div class="lb">Pílula no topo da tela<span>"No ar" ou "Mudo" por 1,5 s a cada troca</span></div>${sw('swPill',S.pill,'Pílula')}</div>
     <div class="r"><div class="lb">Indicador fixo<span>Fica no canto da tela enquanto estiver mudo. ${T().shot}</span></div>
@@ -213,7 +212,7 @@ function renderPane(){
   on('swApp', ()=>patch({app_rule:!S.app_rule}));
   on('swMeetRule', ()=>patch({meet_rule:!S.meet_rule}));
   const ms = sp.querySelector('#micSel');
-  if(ms){ ms.value=S.mic||''; ms.onchange=()=>{ const m=S.mics.find(x=>x.name===ms.value); patch({mic:ms.value||null, mic_desc:m?m.desc:''}); }; }
+  if(ms){ ms.value=(S.mics.find(m=>m.def)||{}).name||''; ms.onchange=()=>invoke('use_mic',{name:ms.value}); }
   on('simLock', ()=>invoke('lock_now'));
   sp.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>patch({apps:S.apps.filter(a=>a!==b.dataset.rm)}));
   const f = sp.querySelector('#addApp');

@@ -3,9 +3,9 @@ use serde_json::Value;
 #[cfg(target_os = "linux")]
 use std::process::{Command, Stdio};
 #[cfg(target_os = "macos")]
-pub use crate::mac::{get_muted, mics, play, set_muted};
+pub use crate::mac::{get_muted, mics, play, set_default, set_muted};
 #[cfg(windows)]
-pub use crate::win::{get_muted, mics, play, set_muted};
+pub use crate::win::{get_muted, mics, play, set_default, set_muted};
 
 pub const DEFAULT: &str = "@DEFAULT_AUDIO_SOURCE@";
 #[cfg(target_os = "linux")]
@@ -84,22 +84,27 @@ pub fn parse_mics(dump: &str) -> Vec<Mic> {
         .collect()
 }
 
-// wpctl only takes numeric ids, which change on replug, so the setting stores node.name
+// wpctl only takes numeric ids, which change on replug, so the UI and the phone pick by node.name
 #[cfg(target_os = "linux")]
 pub fn mics() -> Vec<Mic> {
     Command::new("pw-dump").output().map(|o| parse_mics(&String::from_utf8_lossy(&o.stdout))).unwrap_or_default()
 }
 
-/// `None` means the name isn't a known mic; `Some(None)` is the system default.
-pub fn pick<'a>(mics: &'a [Mic], name: Option<&str>) -> Option<Option<&'a Mic>> {
-    match name {
-        None => Some(None),
-        Some(n) => mics.iter().find(|m| m.name == n).map(Some),
-    }
+pub fn pick<'a>(mics: &'a [Mic], name: &str) -> Option<&'a Mic> {
+    mics.iter().find(|m| m.name == name)
 }
 
-pub fn target(mics: &[Mic], chosen: Option<&str>) -> String {
-    chosen.and_then(|c| mics.iter().find(|m| m.name == c)).map(|m| m.id.clone()).unwrap_or_else(|| DEFAULT.into())
+#[cfg(target_os = "linux")]
+pub fn set_default(id: &str) -> bool {
+    Command::new("wpctl").args(["set-default", id]).status().is_ok_and(|s| s.success())
+}
+
+pub fn default_text(id: &str) -> String {
+    if cfg!(target_os = "linux") {
+        format!("wpctl set-default {id}")
+    } else {
+        format!("padrão de entrada → {id}")
+    }
 }
 
 // ponytail: system theme sounds; ship our own .oga if these feel off
@@ -126,7 +131,7 @@ mod tests {
     }
 
     #[test]
-    fn lists_mics_and_resolves_the_chosen_one() {
+    fn lists_mics_and_picks_by_name() {
         let dump = r#"[
           {"id":42,"type":"PipeWire:Interface:Node","info":{"props":{"media.class":"Audio/Source","node.name":"usb-mic","node.description":"fifine  Microphone"}}},
           {"id":57,"type":"PipeWire:Interface:Node","info":{"props":{"media.class":"Audio/Source","node.name":"headset","node.description":"Headset"}}},
@@ -136,12 +141,8 @@ mod tests {
         let m = parse_mics(dump);
         assert_eq!(m.len(), 2);
         assert_eq!((m[0].desc.as_str(), m[0].def, m[1].def), ("fifine Microphone", true, false));
-        assert_eq!(target(&m, Some("headset")), "57");
-        assert_eq!(target(&m, Some("unplugged")), DEFAULT);
-        assert_eq!(target(&m, None), DEFAULT);
         assert!(parse_mics("not json").is_empty());
-        assert_eq!(pick(&m, None), Some(None));
-        assert_eq!(pick(&m, Some("headset")).flatten().map(|x| x.id.as_str()), Some("57"));
-        assert_eq!(pick(&m, Some("../../etc")), None);
+        assert_eq!(pick(&m, "headset").map(|x| x.id.as_str()), Some("57"));
+        assert_eq!(pick(&m, "../../etc"), None);
     }
 }

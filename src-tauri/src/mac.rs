@@ -161,6 +161,10 @@ pub fn set_muted(target: &str, muted: bool) -> bool {
     })
 }
 
+pub fn set_default(uid: &str) -> bool {
+    device(uid).is_some_and(|id| set(SYSTEM, &addr(DEFAULT_INPUT, GLOBAL, 0), id))
+}
+
 pub fn mics() -> Vec<Mic> {
     let def = device(DEFAULT);
     devices()

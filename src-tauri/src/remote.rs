@@ -138,11 +138,7 @@ impl Pairing {
 }
 
 fn phone_state(core: &Core, host: &str) -> Value {
-    let mut v = json!({"t":"state","muted":core.muted(),"host":host,"meet":core.meet_status()});
-    if let (Some(o), Ok(Value::Object(m))) = (v.as_object_mut(), serde_json::to_value(core.mic_view())) {
-        o.extend(m);
-    }
-    v
+    json!({"t":"state","muted":core.muted(),"host":host,"meet":core.meet_status(),"mics":core.mics()})
 }
 
 fn device_name(ua: &str) -> String {
@@ -203,7 +199,7 @@ async fn phone_loop(mut ws: WebSocket, core: Arc<Core>, ua: String) {
                         let reply = match v["t"].as_str() {
                             Some("toggle") => json!({"t":"ack","muted":core.toggle("celular")}),
                             Some("mic") => {
-                                core.set_mic(v["name"].as_str(), "celular");
+                                core.use_mic(v["name"].as_str().unwrap_or(""), "celular");
                                 phone_state(&core, &host)
                             }
                             Some("cmd") => {
