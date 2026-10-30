@@ -115,6 +115,11 @@ https://claude.ai/artifact/CaqrnFcSV88Hp2UaVBwaWB (v1, 30/10)
 - [ ] Manual: sessão Wayland real (sair e entrar em "Ubuntu" com Wayland) para conferir pílula, ponto, tray e atalhos
 - [ ] Manual: portal real no GNOME 48+ ou KDE (o diálogo de aprovação)
 
+## 11. README
+- [x] README de vitrine: problema, recursos, privacidade, perguntas e instalação
+- [x] `docs/demo.svg`: demo animada só com CSS (toca no GitHub), cena e legendas próprias
+- [x] `docs/shots/`: janela de Ajustes real; indicadores e página do celular renderizados com o CSS do app
+
 ## Fora do escopo
 - [-] Integração com Teams
 - [-] Trial / licença / pagamento
