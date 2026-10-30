@@ -67,6 +67,7 @@ input.in:focus,select.in:focus{border-color:var(--accent)}
 .note.okn{color:var(--ok)}
 .note.wn{color:var(--orange)}
 .combo .none{color:var(--comment)}
+.r.off{opacity:.5}
 .r.scrow .lb{min-width:150px}
 .r.scrow .combo{min-width:130px}
 

@@ -2241,6 +2241,7 @@ dependencies = [
  "tauri-plugin-global-shortcut",
  "tauri-plugin-single-instance",
  "tokio",
+ "zbus",
 ]
 
 [[package]]

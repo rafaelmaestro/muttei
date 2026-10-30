@@ -3,6 +3,7 @@ mod ptt;
 mod remote;
 mod rules;
 mod settings;
+mod shortcuts;
 
 use remote::{Iface, PairResult, Pairing};
 use serde::Serialize;
@@ -71,6 +72,8 @@ pub struct Core {
     hold: Mutex<ptt::Hold>,
     meet: Mutex<Option<MeetStatus>>,
     cmd_src: Mutex<String>,
+    backend: shortcuts::Backend,
+    portal: Mutex<Option<Arc<shortcuts::Portal>>>,
 }
 
 #[derive(Serialize, Clone)]
@@ -92,6 +95,7 @@ struct Snapshot {
     holding: Option<HoldView>,
     shortcut: String,
     shortcuts: BTreeMap<String, String>,
+    shortcut_backend: &'static str,
     sound: bool,
     pill: bool,
     dot: bool,
@@ -162,6 +166,7 @@ impl Core {
             },
             shortcut: s.shortcut(),
             shortcuts: s.shortcuts.clone(),
+            shortcut_backend: self.backend.name(),
             sound: s.sound,
             pill: s.pill,
             dot: s.dot,
@@ -455,18 +460,67 @@ impl Core {
         }
     }
 
-    fn register_all(self: &Arc<Self>) {
-        let gs = self.app.global_shortcut();
-        let _ = gs.unregister_all();
-        let mut errs = BTreeMap::new();
-        for (action, combo) in self.settings().shortcuts {
-            let core = self.clone();
-            let a = action.clone();
-            if let Err(e) = gs.on_shortcut(combo.as_str(), move |_, _, e| core.on_key(&a, e.state)) {
-                errs.insert(action, format!("Não consegui registrar {combo}: {e}. Outro programa pode estar usando esse atalho."));
+    fn bindings(&self) -> Vec<(String, String, String)> {
+        self.settings()
+            .shortcuts
+            .into_iter()
+            .filter(|(a, _)| self.backend.has_release() || !matches!(a.as_str(), "ptt" | "ptc"))
+            .map(|(a, c)| {
+                let label = settings::ACTIONS.iter().find(|(k, _)| *k == a).map(|(_, l)| *l).unwrap_or("").to_string();
+                (a, label, c)
+            })
+            .collect()
+    }
+
+    fn exe() -> String {
+        std::env::current_exe().map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|_| "muttei".into())
+    }
+
+    fn apply_bindings(self: &Arc<Self>, list: Vec<(String, String, String)>) {
+        let fail_all = |core: &Core, e: String, list: &[(String, String, String)]| {
+            *core.sc_errs.lock().unwrap() = list.iter().map(|(a, _, _)| (a.clone(), e.clone())).collect();
+        };
+        match self.backend {
+            shortcuts::Backend::X11 => {
+                let gs = self.app.global_shortcut();
+                let _ = gs.unregister_all();
+                let mut errs = BTreeMap::new();
+                for (action, _, combo) in list {
+                    let core = self.clone();
+                    let a = action.clone();
+                    if let Err(e) = gs.on_shortcut(combo.as_str(), move |_, _, e| core.on_key(&a, e.state)) {
+                        errs.insert(action, format!("Não consegui registrar {combo}: {e}. Outro programa pode estar usando esse atalho."));
+                    }
+                }
+                *self.sc_errs.lock().unwrap() = errs;
+            }
+            shortcuts::Backend::Gnome => match shortcuts::gnome_apply(&list, &Self::exe()) {
+                Ok(()) => self.sc_errs.lock().unwrap().clear(),
+                Err(e) => fail_all(self, format!("Não consegui registrar os atalhos no GNOME: {e}"), &list),
+            },
+            shortcuts::Backend::Portal => {
+                let Some(portal) = self.portal.lock().unwrap().clone() else {
+                    return fail_all(self, "O portal de atalhos do sistema não respondeu.".into(), &list);
+                };
+                let core = self.clone();
+                // binding can open a system dialog and wait for the user, so it can't block the caller
+                std::thread::spawn(move || {
+                    match portal.bind(&list) {
+                        Ok(()) => core.sc_errs.lock().unwrap().clear(),
+                        Err(e) => fail_all(&core, e, &list),
+                    }
+                    core.emit_state();
+                });
             }
         }
-        *self.sc_errs.lock().unwrap() = errs;
+    }
+
+    fn register_all(self: &Arc<Self>) {
+        self.apply_bindings(self.bindings());
+    }
+
+    fn unregister_all(self: &Arc<Self>) {
+        self.apply_bindings(vec![]);
     }
 
     fn set_shortcut(self: &Arc<Self>, action: &str, combo: &str) -> Result<(), String> {
@@ -627,6 +681,13 @@ fn ensure_dots(app: &AppHandle, corner: &str) {
     }
 }
 
+fn action_arg(args: impl IntoIterator<Item = String>) -> Option<String> {
+    let mut it = args.into_iter();
+    it.find(|a| a == "--action")?;
+    // --action only ever reports a press, so the hold actions would never be released
+    it.next().filter(|a| settings::ACTIONS.iter().any(|(k, _)| k == a) && !matches!(a.as_str(), "ptt" | "ptc"))
+}
+
 fn show_settings(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("settings") {
         let _ = w.show();
@@ -651,7 +712,7 @@ fn update(core: C, patch: serde_json::Value) -> Result<(), String> {
 }
 #[tauri::command]
 fn rec_start(core: C) {
-    let _ = core.app.global_shortcut().unregister_all();
+    core.unregister_all();
 }
 #[tauri::command]
 fn rec_cancel(core: C) {
@@ -731,8 +792,20 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
         hold: Mutex::new(ptt::Hold::default()),
         meet: Mutex::new(None),
         cmd_src: Mutex::new(String::new()),
+        backend: shortcuts::detect(),
+        portal: Mutex::new(None),
     });
     app.manage(core.clone());
+    if core.backend == shortcuts::Backend::Portal {
+        let c = core.clone();
+        match shortcuts::Portal::start(move |id, pressed| c.on_key(id, if pressed { ShortcutState::Pressed } else { ShortcutState::Released })) {
+            Ok(p) => *core.portal.lock().unwrap() = Some(p),
+            Err(e) => eprintln!("muttei: global shortcuts portal: {e}"),
+        }
+    }
+    if core.backend != shortcuts::Backend::Gnome && shortcuts::gnome_has_ours() {
+        let _ = shortcuts::gnome_apply(&[], &Core::exe());
+    }
 
     WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
         .title("Ajustes do Muttei")
@@ -772,6 +845,9 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
     }
     core.register_all();
     core.update_indicators();
+    if let Some(a) = action_arg(std::env::args()) {
+        core.on_key(&a, ShortcutState::Pressed);
+    }
     core.restart_phone();
     tauri::async_runtime::spawn(remote::serve_meet(core.clone()));
 
@@ -851,8 +927,15 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
 }
 
 fn main() {
+    // pill and dot need to place themselves and stay on top, which native Wayland forbids; XWayland allows it
+    if shortcuts::wayland() && std::env::var_os("GDK_BACKEND").is_none() {
+        std::env::set_var("GDK_BACKEND", "x11");
+    }
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| show_settings(app)))
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _| match action_arg(argv) {
+            Some(a) => app.state::<Arc<Core>>().on_key(&a, ShortcutState::Pressed),
+            None => show_settings(app),
+        }))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
         .invoke_handler(tauri::generate_handler![
@@ -866,4 +949,22 @@ fn main() {
                 api.prevent_exit();
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::action_arg;
+
+    fn args(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn parses_action_argument() {
+        assert_eq!(action_arg(args(&["muttei", "--action", "toggle_mute"])), Some("toggle_mute".into()));
+        assert_eq!(action_arg(args(&["muttei", "--action", "camera"])), Some("camera".into()));
+        assert_eq!(action_arg(args(&["muttei", "--action", "ptt"])), None);
+        assert_eq!(action_arg(args(&["muttei", "--action", "rm"])), None);
+        assert_eq!(action_arg(args(&["muttei"])), None);
+    }
 }

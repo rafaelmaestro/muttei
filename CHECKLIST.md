@@ -105,6 +105,16 @@ https://claude.ai/artifact/CaqrnFcSV88Hp2UaVBwaWB (v1, 30/10)
 - [x] `.deb` gerado; `scripts/package-deb.sh` reempacota porque o bundler do Tauri grava UID de 9 dígitos no header `ar` e o dpkg recusa
 - [ ] Busca de marca registrada antes de publicar
 
+## 10. Wayland
+- [x] No Wayland, o app força o XWayland (`GDK_BACKEND=x11`), para pílula, ponto e posição continuarem funcionando
+- [x] `shortcuts.rs`: escolhe X11, portal `GlobalShortcuts` ou atalhos personalizados do GNOME · 5 testes
+- [x] Backend GNOME: E2E nesta sessão com `MUTTEI_SHORTCUTS=gnome`; os atalhos do usuário são preservados e os do Muttei saem ao voltar para o X11
+- [x] Backend portal: E2E com portal falso em PyGObject (`MUTTEI_PORTAL_BUS`); segurar para falar com Activated/Deactivated
+- [x] `--action <ação>` pela instância única; recusa ptt/ptc, que nunca receberiam o "soltar" · teste
+- [x] UI: no GNOME 46 Wayland, segurar fica desativado com aviso; o texto explica o backend · protótipo v8
+- [ ] Manual: sessão Wayland real (sair e entrar em "Ubuntu" com Wayland) para conferir pílula, ponto, tray e atalhos
+- [ ] Manual: portal real no GNOME 48+ ou KDE (o diálogo de aprovação)
+
 ## Fora do escopo
 - [-] Integração com Teams
 - [-] Trial / licença / pagamento

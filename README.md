@@ -3,13 +3,25 @@
   <img src="brand/logo/horizontal.svg" alt="Muttei" height="64">
 </picture>
 
-Seu microfone em um atalho. Muta o microfone de qualquer app no Linux (GNOME/X11 + PipeWire) e mostra o estado na tela.
+Seu microfone em um atalho. Muta o microfone de qualquer app no Linux (GNOME, X11 ou Wayland, com PipeWire) e mostra o estado na tela.
 
 - **Atalho global:** Ctrl+Shift+M muta e desmuta. Também dá para configurar segurar para falar, segurar para tossir e atalhos de câmera, mão e sair do Meet.
 - **Indicadores:** pílula "No ar"/"Mudo" em todas as telas, ícone na tray e ponto vermelho fixo enquanto estiver mudo.
 - **Regras:** muta ao travar a tela e quando um app da lista abre.
 - **Celular:** controle pela Wi-Fi, sem instalar nada. O celular abre uma página, pareia por QR e código de 4 dígitos.
 - **Google Meet:** a extensão em `extension/` faz o ícone de mic acompanhar o estado e executa câmera, mão e sair.
+
+## Wayland
+
+No Wayland o app roda pelo XWayland, que mantém a pílula e o indicador no lugar. Os atalhos dependem da sessão:
+
+| Sessão | Atalhos | Segurar para falar/tossir |
+|---|---|---|
+| X11 | grab do X11 | sim |
+| Wayland, GNOME 48+ ou KDE | portal `GlobalShortcuts` (o sistema pede aprovação) | sim |
+| Wayland, GNOME 46/47 | atalhos personalizados do GNOME que chamam `muttei --action <ação>` | não: o GNOME não informa quando a tecla é solta |
+
+Para forçar um backend, use `MUTTEI_SHORTCUTS=x11|portal|gnome`.
 
 ## Rodar
 

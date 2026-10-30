@@ -86,7 +86,10 @@ function renderNav(){
   }).join('');
   $('#snav').querySelectorAll('button').forEach(b=>b.onclick=()=>{ if(ui.recording) stopRec(); ui.tab=b.dataset.tab; render(); });
 }
+const NO_RELEASE = a => S.shortcut_backend==='gnome' && (a==='ptt' || a==='ptc');
 function scRow([a,l,sub]){
+  if(NO_RELEASE(a)) return `<div class="r scrow off"><div class="lb">${l}<span>${sub}</span></div>
+      <div class="combo"><span class="none">indisponível</span></div><button class="btn" disabled>Definir</button></div>`;
   const v = S.shortcuts[a], rec = ui.recording===a;
   const hold = S.holding && S.holding.kind===a;
   return `<div class="r scrow"><div class="lb">${l}<span>${sub}</span></div>
@@ -99,9 +102,10 @@ function scRow([a,l,sub]){
     ${scErr(a)?`<div class="r"><span class="note err">${esc(scErr(a))}</span></div>`:''}`;
 }
 function paneAtalho(){
-  return `<h2>Atalhos</h2><p class="lead">Funcionam em qualquer janela, inclusive com os Ajustes fechados. Um atalho global vale para o sistema todo, então os novos começam sem tecla: escolha combinações que você não usa em outros apps.</p>
+  return `<h2>Atalhos</h2><p class="lead">Funcionam em qualquer janela, inclusive com os Ajustes fechados. Um atalho global vale para o sistema todo, então os novos começam sem tecla: escolha combinações que você não usa em outros apps.${S.shortcut_backend==='gnome'?' Nesta sessão Wayland, eles ficam registrados como atalhos personalizados do GNOME (Configurações &gt; Teclado).':S.shortcut_backend==='portal'?' Nesta sessão Wayland, eles passam pelo portal do sistema, que pede para você aprovar.':''}</p>
   <div class="sec">Microfone</div>
-  <div class="grp">${ACTIONS.slice(0,3).map(scRow).join('')}</div>
+  <div class="grp">${ACTIONS.slice(0,3).map(scRow).join('')}
+    ${S.shortcut_backend==='gnome'?`<div class="r"><span class="note wn">No Wayland do GNOME 46 não dá para saber quando a tecla é solta, então segurar para falar e para tossir só funcionam no X11 ou no GNOME 48+.</span></div>`:''}</div>
   <div class="sec">Chamada no Meet</div>
   <div class="grp">${ACTIONS.slice(3).map(scRow).join('')}
     ${S.browsers.length?'':`<div class="r"><span class="note wn">Precisa da extensão do Muttei no navegador (Ajustes &gt; Meet).</span></div>`}</div>`;
