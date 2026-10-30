@@ -138,7 +138,11 @@ impl Pairing {
 }
 
 fn phone_state(core: &Core, host: &str) -> Value {
-    json!({"t":"state","muted":core.muted(),"host":host,"meet":core.meet_status()})
+    let mut v = json!({"t":"state","muted":core.muted(),"host":host,"meet":core.meet_status()});
+    if let (Some(o), Ok(Value::Object(m))) = (v.as_object_mut(), serde_json::to_value(core.mic_view())) {
+        o.extend(m);
+    }
+    v
 }
 
 fn device_name(ua: &str) -> String {
@@ -194,10 +198,14 @@ async fn phone_loop(mut ws: WebSocket, core: Arc<Core>, ua: String) {
                         };
                         if !send(&mut ws, reply).await { break }
                     }
-                    "hello" | "toggle" | "cmd" if core.valid_token(&tok) => {
+                    "hello" | "toggle" | "cmd" | "mic" if core.valid_token(&tok) => {
                         authed = Some(tok);
                         let reply = match v["t"].as_str() {
                             Some("toggle") => json!({"t":"ack","muted":core.toggle("celular")}),
+                            Some("mic") => {
+                                core.set_mic(v["name"].as_str(), "celular");
+                                phone_state(&core, &host)
+                            }
                             Some("cmd") => {
                                 let cmd = v["cmd"].as_str().filter(|c| MEET_CMDS.contains(c)).unwrap_or("");
                                 json!({"t":"ack","muted":core.muted(),"cmd":cmd,"ok":!cmd.is_empty() && core.meet_cmd(cmd, "celular")})
@@ -206,7 +214,7 @@ async fn phone_loop(mut ws: WebSocket, core: Arc<Core>, ua: String) {
                         };
                         if !send(&mut ws, reply).await { break }
                     }
-                    "hello" | "toggle" | "cmd" => {
+                    "hello" | "toggle" | "cmd" | "mic" => {
                         authed = None;
                         if !send(&mut ws, json!({"t":"revoked"})).await { break }
                     }
@@ -217,7 +225,7 @@ async fn phone_loop(mut ws: WebSocket, core: Arc<Core>, ua: String) {
                 let Ok(e) = e else { continue };
                 let Some(tok) = authed.clone() else { continue };
                 let msg = match e {
-                    Event::Muted(_) | Event::Meet => phone_state(&core, &host),
+                    Event::Muted(_) | Event::Meet | Event::Mics => phone_state(&core, &host),
                     Event::Devices if !core.valid_token(&tok) => { authed = None; json!({"t":"revoked"}) }
                     Event::Devices | Event::Cmd(_) => continue,
                 };

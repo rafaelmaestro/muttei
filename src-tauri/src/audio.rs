@@ -90,6 +90,14 @@ pub fn mics() -> Vec<Mic> {
     Command::new("pw-dump").output().map(|o| parse_mics(&String::from_utf8_lossy(&o.stdout))).unwrap_or_default()
 }
 
+/// `None` means the name isn't a known mic; `Some(None)` is the system default.
+pub fn pick<'a>(mics: &'a [Mic], name: Option<&str>) -> Option<Option<&'a Mic>> {
+    match name {
+        None => Some(None),
+        Some(n) => mics.iter().find(|m| m.name == n).map(Some),
+    }
+}
+
 pub fn target(mics: &[Mic], chosen: Option<&str>) -> String {
     chosen.and_then(|c| mics.iter().find(|m| m.name == c)).map(|m| m.id.clone()).unwrap_or_else(|| DEFAULT.into())
 }
@@ -132,5 +140,8 @@ mod tests {
         assert_eq!(target(&m, Some("unplugged")), DEFAULT);
         assert_eq!(target(&m, None), DEFAULT);
         assert!(parse_mics("not json").is_empty());
+        assert_eq!(pick(&m, None), Some(None));
+        assert_eq!(pick(&m, Some("headset")).flatten().map(|x| x.id.as_str()), Some("57"));
+        assert_eq!(pick(&m, Some("../../etc")), None);
     }
 }

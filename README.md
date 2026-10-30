@@ -56,9 +56,9 @@ A pílula aparece em todos os monitores a cada mudança. Enquanto o microfone es
 O Muttei muta ao travar a tela, ao entrar numa chamada do Meet e quando abre um app da sua lista, por exemplo o `zoom`. As regras só fecham o microfone, nunca abrem.
 
 ### O celular vira o botão
-Se você levantou da mesa, abra a página do Muttei no celular, na mesma rede Wi-Fi. Não precisa instalar nada. O pareamento é por QR e por um código de 4 dígitos, e cada aparelho pode ser revogado nos Ajustes. Com uma chamada do Meet aberta, aparecem também os botões de câmera, mão e sair.
+Se você levantou da mesa, abra a página do Muttei no celular, na mesma rede Wi-Fi. Não precisa instalar nada. O pareamento é por QR e por um código de 4 dígitos, e cada aparelho pode ser revogado nos Ajustes. Com uma chamada do Meet aberta, aparecem também os botões de câmera, mão e sair. Pelo celular também dá para trocar o microfone que o PC muta, por exemplo do headset para o mic da webcam.
 
-<p align="center"><img src="docs/shots/celular.png" alt="Página do celular com o microfone mudo e os botões de câmera, mão e sair" width="240"></p>
+<p align="center"><img src="docs/shots/celular.png" alt="Página do celular com o microfone mudo, os botões de câmera, mão e sair e o seletor de microfone do PC" width="240"></p>
 
 ### Google Meet de verdade
 Com a extensão em [`extension/`](extension/), o ícone de microfone do Meet acompanha o estado do Muttei. A extensão também executa câmera, levantar a mão e sair da chamada, pelo atalho ou pelo celular.

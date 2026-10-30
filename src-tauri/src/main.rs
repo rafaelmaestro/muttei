@@ -44,6 +44,7 @@ const TOP: f64 = 40.0;
 
 #[derive(Clone)]
 pub enum Event {
+    Mics,
     Muted(bool),
     Devices,
     Cmd(String),
@@ -105,6 +106,14 @@ struct HoldView {
 }
 
 #[derive(Serialize, Clone)]
+pub struct MicView {
+    mic: Option<String>,
+    mic_desc: String,
+    mics: Vec<audio::Mic>,
+    mic_gone: bool,
+}
+
+#[derive(Serialize, Clone)]
 struct Snapshot {
     muted: bool,
     holding: Option<HoldView>,
@@ -122,10 +131,8 @@ struct Snapshot {
     lock_rule: bool,
     app_rule: bool,
     meet_rule: bool,
-    mic: Option<String>,
-    mic_desc: String,
-    mics: Vec<audio::Mic>,
-    mic_gone: bool,
+    #[serde(flatten)]
+    mic: MicView,
     apps: Vec<String>,
     running: Vec<String>,
     phone_on: bool,
@@ -190,8 +197,31 @@ impl Core {
             self.update_indicators();
         }
         if retarget || relist {
+            let _ = self.tx.send(Event::Mics);
             self.emit_state();
         }
+    }
+
+    pub fn mic_view(&self) -> MicView {
+        let s = self.settings();
+        MicView {
+            mic_gone: s.mic.is_some() && *self.target.lock().unwrap() == audio::DEFAULT,
+            mic: s.mic,
+            mic_desc: s.mic_desc,
+            mics: self.mics.lock().unwrap().clone(),
+        }
+    }
+
+    pub fn set_mic(self: &Arc<Self>, name: Option<&str>, src: &str) -> bool {
+        let mics = self.mics.lock().unwrap().clone();
+        let Some(m) = audio::pick(&mics, name) else { return false };
+        let desc = m.map(|m| m.desc.clone()).unwrap_or_default();
+        if self.update(serde_json::json!({"mic": name, "mic_desc": desc})).is_err() {
+            return false;
+        }
+        let shown = if desc.is_empty() { "padrão do sistema".to_string() } else { desc };
+        self.pill_icon(if self.muted() { "off" } else { "on" }, "Microfone", &format!("{shown} · {src}"), "mic");
+        true
     }
 
     pub fn hostname(&self) -> String {
@@ -231,10 +261,7 @@ impl Core {
             lock_rule: s.lock_rule,
             app_rule: s.app_rule,
             meet_rule: s.meet_rule,
-            mic_gone: s.mic.is_some() && *self.target.lock().unwrap() == audio::DEFAULT,
-            mic: s.mic.clone(),
-            mic_desc: s.mic_desc.clone(),
-            mics: self.mics.lock().unwrap().clone(),
+            mic: self.mic_view(),
             apps: s.apps.clone(),
             running: self.running.lock().unwrap().iter().filter(|r| s.apps.contains(r)).cloned().collect(),
             phone_on: s.phone_on,
@@ -656,6 +683,7 @@ impl Core {
         }
         if old.mic != new.mic {
             self.refresh_mics();
+            let _ = self.tx.send(Event::Mics);
         }
         if old.dot_corner != new.dot_corner {
             ensure_dots(&self.app, &new.dot_corner);
