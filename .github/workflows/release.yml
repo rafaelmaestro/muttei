@@ -19,10 +19,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-      - run: cargo install tauri-cli --version '^2' --locked
-      - run: cargo test
+      # release tests share the compiled deps with the release build below
+      - run: cargo test --release
         working-directory: src-tauri
       - id: build
+        env:
+          # the prebuilt CLI from npm installs in seconds; cargo install compiled it for 12 minutes
+          TAURI: npx --yes @tauri-apps/cli@2
         run: |
           echo "deb=src-tauri/$(./scripts/package-deb.sh | tail -1)" >> "$GITHUB_OUTPUT"
           echo "zip=$(./scripts/package-extension.sh)" >> "$GITHUB_OUTPUT"
@@ -41,10 +44,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-      - run: cargo install tauri-cli --version '^2' --locked
-      - run: cargo test
+      # release tests share the compiled deps with the release build below
+      - run: cargo test --release
         working-directory: src-tauri
-      - run: cargo tauri build --bundles nsis
+      - run: npx --yes @tauri-apps/cli@2 build --bundles nsis
         working-directory: src-tauri
       - uses: actions/upload-artifact@v4
         with:
