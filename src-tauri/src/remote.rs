@@ -10,9 +10,11 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tokio::sync::oneshot;
 
 pub const MEET_PORT: u16 = 47822;
+const LOCKOUT: Duration = Duration::from_secs(60);
 const HIDDEN: &[&str] = &["docker", "br-", "veth", "tun", "wg", "virbr"];
 
 #[derive(Serialize, Clone, Debug, PartialEq)]
@@ -87,16 +89,22 @@ pub enum PairResult {
     Ok,
     Bad { left: u8 },
     Regenerated,
+    Locked { secs: u64 },
 }
 
 pub struct Pairing {
     pub code: String,
     pub fails: u8,
+    locked_until: Option<Instant>,
 }
 
 impl Pairing {
     pub fn new() -> Self {
-        Self { code: Self::new_code(), fails: 0 }
+        Self { code: Self::new_code(), fails: 0, locked_until: None }
+    }
+
+    pub fn locked_secs(&self) -> u64 {
+        self.locked_until.map(|t| t.saturating_duration_since(Instant::now()).as_secs()).filter(|s| *s > 0).unwrap_or(0)
     }
 
     fn new_code() -> String {
@@ -109,6 +117,10 @@ impl Pairing {
     }
 
     pub fn try_code(&mut self, code: &str) -> PairResult {
+        let secs = self.locked_secs();
+        if secs > 0 {
+            return PairResult::Locked { secs };
+        }
         if code == self.code {
             self.regen();
             return PairResult::Ok;
@@ -116,6 +128,7 @@ impl Pairing {
         self.fails += 1;
         if self.fails >= 5 {
             self.regen();
+            self.locked_until = Some(Instant::now() + LOCKOUT);
             return PairResult::Regenerated;
         }
         PairResult::Bad { left: 5 - self.fails }
@@ -131,9 +144,15 @@ async fn send(ws: &mut WebSocket, v: Value) -> bool {
     ws.send(Message::Text(v.to_string().into())).await.is_ok()
 }
 
+fn woff2(b: &'static [u8]) -> impl IntoResponse {
+    ([(axum::http::header::CONTENT_TYPE, "font/woff2"), (axum::http::header::CACHE_CONTROL, "max-age=604800")], b)
+}
+
 pub async fn serve_phone(core: Arc<Core>, addr: SocketAddr, stop: oneshot::Receiver<()>) -> std::io::Result<()> {
     let app = Router::new()
         .route("/", get(|| async { Html(include_str!("../../ui/phone.html")) }))
+        .route("/fonts/IBMPlexSans.woff2", get(|| async { woff2(include_bytes!("../../ui/fonts/IBMPlexSans.woff2")) }))
+        .route("/fonts/JetBrainsMono.woff2", get(|| async { woff2(include_bytes!("../../ui/fonts/JetBrainsMono.woff2")) }))
         .route("/ws", get(phone_ws))
         .with_state(core);
     let listener = tokio::net::TcpListener::bind(addr).await?;
@@ -163,6 +182,7 @@ async fn phone_loop(mut ws: WebSocket, core: Arc<Core>, ua: String) {
                             Ok(tok) => { authed = Some(tok.clone()); json!({"t":"paired","token":tok,"muted":core.muted(),"host":host}) }
                             Err(PairResult::Regenerated) => json!({"t":"regen"}),
                             Err(PairResult::Bad { left }) => json!({"t":"bad","left":left}),
+                            Err(PairResult::Locked { secs }) => json!({"t":"locked","secs":secs}),
                             Err(PairResult::Ok) => unreachable!(),
                         };
                         if !send(&mut ws, reply).await { break }
@@ -295,6 +315,10 @@ mod tests {
         }
         assert_eq!(p.try_code(wrong), PairResult::Regenerated);
         assert_eq!(p.fails, 0);
+        let fresh = p.code.clone();
+        assert!(matches!(p.try_code(&fresh), PairResult::Locked { secs } if secs > 50));
+        assert!(matches!(p.try_code(wrong), PairResult::Locked { .. }));
+        assert_eq!(p.code, fresh);
     }
 
     #[test]

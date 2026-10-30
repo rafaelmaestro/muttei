@@ -1,5 +1,5 @@
 /* tokens e componentes copiados do protótipo aprovado (artifact CaqrnFcSV88Hp2UaVBwaWB) */
-@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap");
+@import url("fonts.css");
 :root{
   --page:#16171d; --win:#282a36; --panel:#21222c; --raise:#313342; --line:#3b3d50; --fg:#f8f8f2; --muted:#9a9dbb; --comment:#6272a4;
   --accent:#bd93f9; --accent-soft:rgba(189,147,249,.16); --ok:#50fa7b; --cyan:#8be9fd; --orange:#ffb86c; --pink:#ff79c6; --yellow:#f1fa8c; --bad:#ff5555;

@@ -110,7 +110,7 @@ function paneCelular(){
       <span class="muted">1. Aponte a câmera do celular para o QR</span>
       <span class="muted">2. Digite no celular o código:</span>
       <span class="code">${esc(S.code)}</span>
-      <span class="note">${S.fails?`${S.fails} tentativa${S.fails>1?'s':''} errada${S.fails>1?'s':''} · troca após 5`:'O código troca a cada pareamento'}</span>
+      <span class="note ${S.pair_locked?'wn':''}">${S.pair_locked?`5 tentativas erradas: pareamento bloqueado por ${S.pair_locked} s`:S.fails?`${S.fails} tentativa${S.fails>1?'s':''} errada${S.fails>1?'s':''} · troca após 5`:'O código troca a cada pareamento'}</span>
       <div><button class="btn sm" id="regen">Gerar novo código</button></div>
     </div>
   </div></div>`:''}

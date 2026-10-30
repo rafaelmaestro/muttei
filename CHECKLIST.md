@@ -32,9 +32,11 @@ https://claude.ai/artifact/CaqrnFcSV88Hp2UaVBwaWB (v1, 30/10)
 - [x] Polling de 500 ms para sync externo · mute externo via wpctl refletiu
 - [x] Atalho global Ctrl+Shift+M configurável · testado com Ctrl+Alt+J
 - [x] Desregistrar o atalho durante a captura; erro de registro aparece na UI · Ctrl+Space recusado com aviso do IBus
-- [x] Pílula "No ar" / "Mudo" (~1,5 s, sem foco) · abre no monitor do cursor; janela fica com 200px de altura (mínimo do WebKitGTK), transparente e click-through
+- [x] Pílula "No ar" / "Mudo" (~1,5 s, sem foco) · abre no monitor do cursor; janela fica com 200px (mínimo do WebKitGTK), transparente; click-through **não verificado**
 - [x] Tray: ícone vermelho quando mudo; menu Mutar/Ajustes/Sair · ícone verificado; menu precisa de teste manual
 - [x] Ponto fixo no canto configurável, com opção de desligar · posicionado depois do load (outer_size só vale com a janela realizada)
+- [x] Fontes locais em `ui/fonts/` (OFL), servidas também para o celular; sem dependência de internet no login
+- [x] Um lock só em volta de wpctl + estado, para o polling não sobrescrever um toggle
 - [x] Som via `pw-play`, com opção de desligar · device-removed/added.oga
 - [x] Autostart · cria ~/.config/autostart/Muttei.desktop apontando para o binário que rodou
 - [x] Intro na primeira execução
@@ -53,7 +55,9 @@ https://claude.ai/artifact/CaqrnFcSV88Hp2UaVBwaWB (v1, 30/10)
 - [x] QR code
 - [x] Pareamento: código de 4 dígitos → token; regenera após 5 erros · corrigido deadlock no mutex do pareamento
 - [x] Token validado em toda mensagem; lista de dispositivos com revogar · token forjado → revoked; revogar empurra revoked na hora
-- [x] Teste: pareamento (código errado, regeneração, token inválido)
+- [x] Teste: pareamento
+- [x] Bloqueio de 60 s após 5 erros (sem isso dava para força bruta na LAN) · teste + WS simulado
+- [x] Servidor do celular refaz o bind quando a rede ou o IP mudam (checa a cada 5 s) (código errado, regeneração, token inválido)
 - [x] `phone.html`: botão de mic, estado ao vivo, vibração · testado via WS simulado; falta celular real
 - [x] Aviso de `ufw allow` quando o ufw estiver ativo
 
@@ -65,6 +69,8 @@ https://claude.ai/artifact/CaqrnFcSV88Hp2UaVBwaWB (v1, 30/10)
 - [x] Sync app → Meet sem loop · aplica uma vez por estado e por botão
 
 ## 7. Verificação end-to-end
+- [ ] Click-through: clicar no `×` de uma janela maximizada no notebook (canto do ponto) e numa aba sob a área da pílula
+- [ ] Menu da tray: Mutar/Desmutar, Ajustes, Sair
 - [x] Ctrl+Shift+M → `[MUTED]` + pílula + tray + ponto + som; reverte
 - [x] Mute pelo GNOME reflete em ~500 ms · testado via wpctl
 - [ ] Super+L muta

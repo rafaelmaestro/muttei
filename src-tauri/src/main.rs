@@ -42,9 +42,11 @@ pub struct Core {
     app: AppHandle,
     s: Mutex<Settings>,
     muted: AtomicBool,
+    audio_lock: Mutex<()>,
     locked_mute: AtomicBool,
     pairing: Mutex<Pairing>,
     phone_stop: Mutex<Option<oneshot::Sender<()>>>,
+    phone_addr: Mutex<Option<SocketAddr>>,
     phone_err: Mutex<String>,
     pub tx: broadcast::Sender<Event>,
     live: Mutex<HashMap<String, u32>>,
@@ -85,6 +87,7 @@ struct Snapshot {
     qr: String,
     code: String,
     fails: u8,
+    pair_locked: u64,
     devices: Vec<PublicDevice>,
     phone_err: String,
     ufw: bool,
@@ -153,6 +156,7 @@ impl Core {
             url,
             code: p.code.clone(),
             fails: p.fails,
+            pair_locked: p.locked_secs(),
             devices: s.devices.iter().map(|d| PublicDevice { id: d.id.clone(), name: d.name.clone(), when: d.when.clone() }).collect(),
             phone_err: self.phone_err.lock().unwrap().clone(),
             ufw: remote::ufw_enabled(),
@@ -180,8 +184,7 @@ impl Core {
         let _ = self.app.emit_to("pill", "pill", serde_json::json!({"kind": kind, "text": text, "sub": sub}));
     }
 
-    fn apply(&self, m: bool, src: &str, sound: bool) {
-        self.muted.store(m, Ordering::SeqCst);
+    fn effects(&self, m: bool, src: &str, sound: bool) {
         if sound && self.s.lock().unwrap().sound {
             audio::play(m);
         }
@@ -202,15 +205,24 @@ impl Core {
     }
 
     pub fn set_muted(&self, m: bool, src: &str) -> bool {
-        if m == self.muted() {
-            return m;
-        }
-        if !audio::set_muted(m) {
+        // one lock around wpctl + store so the 500ms poll can't replay a stale state over this change
+        let ok = {
+            let _g = self.audio_lock.lock().unwrap();
+            if m == self.muted() {
+                return m;
+            }
+            let ok = audio::set_muted(m);
+            if ok {
+                self.muted.store(m, Ordering::SeqCst);
+            }
+            ok
+        };
+        if !ok {
             self.pill("warn", "O microfone não mudou", "wpctl falhou");
             return self.muted();
         }
         *self.last.lock().unwrap() = audio::command_text(m);
-        self.apply(m, src, true);
+        self.effects(m, src, true);
         m
     }
 
@@ -222,6 +234,7 @@ impl Core {
         let result = self.pairing.lock().unwrap().try_code(code);
         match result {
             PairResult::Ok => {}
+            PairResult::Locked { .. } => return Err(result),
             other => {
                 self.emit_state();
                 return Err(other);
@@ -288,6 +301,7 @@ impl Core {
         if let Some(stop) = self.phone_stop.lock().unwrap().take() {
             let _ = stop.send(());
         }
+        *self.phone_addr.lock().unwrap() = None;
         *self.phone_err.lock().unwrap() = String::new();
         let s = self.settings();
         if !s.phone_on {
@@ -301,13 +315,25 @@ impl Core {
         let Ok(addr) = format!("{ip}:{}", s.port).parse::<SocketAddr>() else { return };
         let (tx, rx) = oneshot::channel();
         *self.phone_stop.lock().unwrap() = Some(tx);
+        *self.phone_addr.lock().unwrap() = Some(addr);
         let core = self.clone();
         tauri::async_runtime::spawn(async move {
             if let Err(e) = remote::serve_phone(core.clone(), addr, rx).await {
                 *core.phone_err.lock().unwrap() = format!("Não consegui abrir {addr}: {e}");
+                *core.phone_addr.lock().unwrap() = None;
                 core.emit_state();
             }
         });
+    }
+
+    fn phone_wants_rebind(&self) -> bool {
+        let s = self.settings();
+        if !s.phone_on {
+            return false;
+        }
+        let (ifaces, _) = remote::interfaces();
+        let want = remote::pick(&ifaces, &s.iface).and_then(|i| format!("{}:{}", i.ip?, s.port).parse::<SocketAddr>().ok());
+        want.is_some() && want != *self.phone_addr.lock().unwrap()
     }
 
     fn register(self: &Arc<Self>, combo: &str) -> Result<(), String> {
@@ -517,10 +543,12 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
     let core = Arc::new(Core {
         app: app.clone(),
         muted: AtomicBool::new(audio::get_muted().unwrap_or(false)),
+        audio_lock: Mutex::new(()),
         locked_mute: AtomicBool::new(false),
         s: Mutex::new(s.clone()),
         pairing: Mutex::new(Pairing::new()),
         phone_stop: Mutex::new(None),
+        phone_addr: Mutex::new(None),
         phone_err: Mutex::new(String::new()),
         tx,
         live: Mutex::new(HashMap::new()),
@@ -578,10 +606,18 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
     std::thread::spawn(move || loop {
         std::thread::sleep(Duration::from_millis(500));
         // ponytail: polling wpctl; switch to pw-mon events if it ever shows up in CPU
-        if let Some(m) = audio::get_muted() {
-            if m != c.muted() {
-                c.apply(m, "sistema", false);
+        let changed = {
+            let _g = c.audio_lock.lock().unwrap();
+            match audio::get_muted() {
+                Some(m) if m != c.muted() => {
+                    c.muted.store(m, Ordering::SeqCst);
+                    Some(m)
+                }
+                _ => None,
             }
+        };
+        if let Some(m) = changed {
+            c.effects(m, "sistema", false);
         }
     });
 
@@ -614,6 +650,15 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
                 c.emit_state();
             }
             prev = now;
+        }
+    });
+
+    let c = core.clone();
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_secs(5));
+        if c.phone_wants_rebind() {
+            c.restart_phone();
+            c.emit_state();
         }
     });
 
