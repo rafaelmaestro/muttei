@@ -139,6 +139,12 @@ O `.deb` já puxa as dependências de execução: `wireplumber`, `pipewire-bin`,
 
 No macOS 15, se a opção Abrir não aparecer, vá em Ajustes do Sistema > Privacidade e Segurança e clique em **Abrir Mesmo Assim**.
 
+### Atualizações
+
+A partir da 0.7.0, o Muttei procura versões novas ao abrir e a cada 6 horas. Quando acha uma, avisa com a pílula, com um ↑ em Ajustes > Geral e com um item na tray. Um clique baixa, instala e reinicia o app. No Linux, o sistema pede a senha de administrador para instalar o `.deb`. Cada atualização é assinada, e o app só instala o que foi assinado pela chave do projeto.
+
+Quem tem uma versão anterior à 0.7.0 precisa instalar a 0.7.0 na mão uma vez. Depois disso, as atualizações chegam sozinhas.
+
 **Para compilar:**
 ```sh
 sudo apt install libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev build-essential pkg-config
@@ -169,4 +175,6 @@ Com o Muttei aberto, a extensão se conecta sozinha. A primeira é aprovada auto
 
 Para publicar no Edge Add-ons ([partner.microsoft.com](https://partner.microsoft.com/dashboard/microsoftedge/overview)), use o mesmo zip e os mesmos textos. Lá a conta é gratuita.
 
-**Para publicar uma versão:** suba a versão em `src-tauri/tauri.conf.json` e envie uma tag `v*`, por exemplo `git tag v0.6.0 && git push --tags`. O workflow `Release` roda os testes no Linux, no Windows e no macOS, gera o `.deb`, o `.exe`, o `.dmg` e o zip da extensão e cria a release com eles.
+**Para publicar uma versão:** suba a versão em `src-tauri/tauri.conf.json` e envie uma tag `v*`, por exemplo `git tag v0.7.0 && git push --tags`. O workflow `Release` roda os testes no Linux, no Windows e no macOS, gera o `.deb`, o `.exe`, o `.dmg` e o zip da extensão, assina as atualizações e cria a release com eles e com o `latest.json` que os apps instalados consultam.
+
+**Chave das atualizações:** a chave fica em `~/.tauri/muttei.key`, e a senha dela em `~/.tauri/muttei.key.password`. O CI usa as duas pelos secrets `TAURI_SIGNING_PRIVATE_KEY` e `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Guarde uma cópia da chave: sem ela, os apps já instalados não aceitam mais nenhuma atualização. O `scripts/package-deb.sh` lê a chave de `~/.tauri` sozinho.

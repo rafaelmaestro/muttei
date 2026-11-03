@@ -34,6 +34,15 @@
           "sound-theme-freedesktop"
         ]
       }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI5NDM1Njk5MUU0QkQ5NjEKUldSaDJVc2VtVlpEdWNhOFZPenpPNWx2TzJGS2ZYRlRJNFRseGhyVjNVbG1BVnRZemJjSUJrWWMK",
+      "endpoints": [
+        "https://github.com/rafaelmaestro/muttei/releases/latest/download/latest.json"
+      ]
     }
   }
 }

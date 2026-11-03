@@ -6,6 +6,7 @@ mod remote;
 mod rules;
 mod settings;
 mod shortcuts;
+mod update;
 #[cfg(target_os = "macos")]
 mod mac;
 #[cfg(windows)]
@@ -64,6 +65,8 @@ struct Tray {
     icon: TrayIcon,
     status: MenuItem<tauri::Wry>,
     toggle: MenuItem<tauri::Wry>,
+    menu: Menu<tauri::Wry>,
+    update: MenuItem<tauri::Wry>,
 }
 
 pub struct Core {
@@ -84,6 +87,8 @@ pub struct Core {
     mics: Mutex<Vec<audio::Mic>>,
     // a headset Muttei switched to its mic profile, and the profile to put back
     headset_back: Mutex<Option<(String, String)>>,
+    update: Mutex<Option<tauri_plugin_updater::Update>>,
+    upd_stage: Mutex<String>,
     running: Mutex<HashSet<String>>,
     tray: Mutex<Option<Tray>>,
     hold: Mutex<ptt::Hold>,
@@ -126,6 +131,9 @@ struct Snapshot {
     meet_rule: bool,
     mics: Vec<audio::Mic>,
     headset_on: bool,
+    version: String,
+    upd: Option<String>,
+    upd_stage: String,
     apps: Vec<String>,
     running: Vec<String>,
     phone_on: bool,
@@ -186,6 +194,20 @@ impl Core {
         if relist {
             let _ = self.tx.send(Event::Mics);
             self.emit_state();
+        }
+    }
+
+    fn set_upd_stage(&self, stage: &str) {
+        *self.upd_stage.lock().unwrap() = stage.into();
+        self.emit_state();
+    }
+
+    fn tray_update(&self, version: &str) {
+        if let Some(t) = self.tray.lock().unwrap().as_ref() {
+            let _ = t.update.set_text(format!("Atualizar para {version}"));
+            // inserting twice duplicates the entry; drop any earlier one first
+            let _ = t.menu.remove(&t.update);
+            let _ = t.menu.insert(&t.update, 2);
         }
     }
 
@@ -268,6 +290,9 @@ impl Core {
             meet_rule: s.meet_rule,
             mics: self.mics(),
             headset_on: self.headset_back.lock().unwrap().is_some(),
+            version: self.app.package_info().version.to_string(),
+            upd: self.update.lock().unwrap().as_ref().map(|u| u.version.clone()),
+            upd_stage: self.upd_stage.lock().unwrap().clone(),
             apps: s.apps.clone(),
             running: self.running.lock().unwrap().iter().filter(|r| s.apps.contains(r)).cloned().collect(),
             phone_on: s.phone_on,
@@ -818,6 +843,15 @@ fn use_mic(core: C, name: String) {
     std::thread::spawn(move || c.use_mic(&name, "ajustes"));
 }
 #[tauri::command]
+fn check_update(core: C) {
+    let c = core.inner().clone();
+    tauri::async_runtime::spawn(async move { update::check(&c, true).await });
+}
+#[tauri::command]
+fn install_update(core: C) {
+    tauri::async_runtime::spawn(update::install(core.inner().clone()));
+}
+#[tauri::command]
 fn rec_start(core: C) {
     core.unregister_all();
 }
@@ -900,6 +934,8 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
         last: Mutex::new(audio::read_text(audio::DEFAULT)),
         mics: Mutex::new(mics),
         headset_back: Mutex::new(None),
+        update: Mutex::new(None),
+        upd_stage: Mutex::new("idle".into()),
         running: Mutex::new(HashSet::new()),
         tray: Mutex::new(None),
         hold: Mutex::new(ptt::Hold::default()),
@@ -935,6 +971,7 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
     let toggle = MenuItem::with_id(app, "toggle", "Mutar", true, None::<&str>)?;
     let open = MenuItem::with_id(app, "settings", "Ajustes", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Sair do Muttei", true, None::<&str>)?;
+    let upd = MenuItem::with_id(app, "update", "Atualizar", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&status, &toggle, &open, &PredefinedMenuItem::separator(app)?, &quit])?;
     let c = core.clone();
     let icon = TrayIconBuilder::with_id("muttei")
@@ -947,11 +984,14 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
                 c.toggle("tray");
             }
             "settings" => show_settings(app),
+            "update" => {
+                tauri::async_runtime::spawn(update::install(c.clone()));
+            }
             "quit" => app.exit(0),
             _ => {}
         })
         .build(app)?;
-    *core.tray.lock().unwrap() = Some(Tray { icon, status, toggle });
+    *core.tray.lock().unwrap() = Some(Tray { icon, status, toggle, menu, update: upd });
 
     {
         let a = app.autolaunch();
@@ -964,6 +1004,7 @@ fn setup(app: &AppHandle) -> tauri::Result<()> {
     }
     core.restart_phone();
     tauri::async_runtime::spawn(remote::serve_meet(core.clone()));
+    update::watch(core.clone());
 
     let c = core.clone();
     std::thread::spawn(move || loop {
@@ -1052,9 +1093,10 @@ fn main() {
             None => show_settings(app),
         }))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
         .invoke_handler(tauri::generate_handler![
-            get_state, toggle_mute, update, use_mic, rec_start, rec_cancel, set_shortcut, clear_shortcut, reset_shortcut, regen_code, revoke, pair_window, test_sound, lock_now, hide_settings, dot_ready
+            get_state, toggle_mute, update, use_mic, check_update, install_update, rec_start, rec_cancel, set_shortcut, clear_shortcut, reset_shortcut, regen_code, revoke, pair_window, test_sound, lock_now, hide_settings, dot_ready
         ])
         .setup(|app| Ok(setup(app.handle())?))
         .build(tauri::generate_context!())

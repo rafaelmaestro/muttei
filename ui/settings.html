@@ -91,6 +91,7 @@ function renderNav(){
     let bd='';
     if(k==='celular') bd = S.phone_on?`<span class="bd">on</span>`:'';
     if(k==='meet') bd = `<span class="bd">${S.browsers.length}</span>`;
+    if(k==='geral' && S.upd) bd = `<span class="bd w">↑</span>`;
     if(k==='atalho' && anyErr()) bd = `<span class="bd w">!</span>`;
     return `<button role="tab" data-tab="${k}" aria-selected="${ui.tab===k}">${l}${bd}</button>`;
   }).join('');
@@ -182,6 +183,16 @@ function paneMeet(){
   <div class="sec">Como funciona</div>
   <div class="grp"><div class="r"><span class="note">Servidor local em <span class="mono">127.0.0.1</span>, só aceita origem <span class="mono">chrome-extension://</span>. A sincronização é de mão única: mutar pelo botão do próprio Meet não muda o microfone do sistema.</span></div></div>`;
 }
+const updPct = () => S.upd_stage.startsWith('down:') ? S.upd_stage.slice(5) : null;
+const updTitle = () => updPct()!==null || S.upd_stage==='installing' ? `Baixando ${S.upd}` : S.upd ? `Versão ${S.upd} disponível` : 'Atualizações';
+const updSub = () => S.upd_stage==='installing' ? (S.os==='linux' ? 'Instalando · confirme a senha de administrador' : 'Instalando · o Muttei reinicia sozinho')
+  : updPct()!==null ? `${updPct()}% · o Muttei reinicia sozinho no fim`
+  : S.upd_stage==='checking' ? 'Procurando…'
+  : S.upd_stage==='error' ? '<span style="color:var(--orange)">Não deu para falar com o GitHub. Tente de novo.</span>'
+  : S.upd ? (S.os==='linux' ? 'O Linux pede a senha de administrador para instalar o .deb.' : 'Baixa, instala e reinicia o Muttei.')
+  : `Muttei ${esc(S.version)} · em dia. Procura sozinho ao abrir e a cada 6 horas.`;
+const updAction = () => updPct()!==null || S.upd_stage==='installing' ? '' : S.upd ? '<button class="btn pri" id="updGo">Atualizar e reiniciar</button>'
+  : `<button class="btn sm" id="updCheck" ${S.upd_stage==='checking'?'disabled':''}>Procurar agora</button>`;
 function paneGeral(){
   return `<h2>Geral</h2>
   <div class="grp">
@@ -195,6 +206,7 @@ function paneGeral(){
       <select class="in" id="dotStyle" ${S.dot?'':'disabled'}><option value="sw">Chave</option><option value="seal">Selo</option><option value="tag">Etiqueta</option><option value="halo">Halo</option></select>
       <select class="in" id="dotAnim" ${S.dot?'':'disabled'}><option value="breathe">respiração lenta</option><option value="slide">entrada + parado</option><option value="both">entrada + respiração</option><option value="none">sem movimento</option></select>
       ${S.muted?'':'<button class="btn sm" id="muteSee">Mutar para ver</button>'}</div>
+    <div class="r"><div class="lb">${updTitle()}<span>${updSub()}</span></div>${updAction()}</div>
     <div class="r"><div class="lb">Iniciar com o sistema<span class="mono">${T().auto}</span></div>${sw('swAuto',S.autostart,'Iniciar com o sistema')}</div>
     <div class="r"><div class="lb">Introdução<span>A tela que aparece na primeira execução</span></div><button class="btn sm" id="introBtn">Mostrar</button></div>
   </div>`;
@@ -233,6 +245,8 @@ function renderPane(){
   on('swDot', ()=>patch({dot:!S.dot}));
   on('swAuto', ()=>patch({autostart:!S.autostart}));
   on('introBtn', intro);
+  on('updCheck', ()=>invoke('check_update'));
+  on('updGo', ()=>invoke('install_update'));
   const c = sp.querySelector('#corner'); if(c){ c.value=S.dot_corner; c.onchange=()=>patch({dot_corner:c.value}); }
   const ds = sp.querySelector('#dotStyle'); if(ds){ ds.value=S.dot_style; ds.onchange=()=>patch({dot_style:ds.value}); }
   const da = sp.querySelector('#dotAnim'); if(da){ da.value=S.dot_anim; da.onchange=()=>patch({dot_anim:da.value}); }
